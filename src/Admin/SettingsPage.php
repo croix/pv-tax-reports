@@ -1,0 +1,180 @@
+<?php
+/**
+ * Settings screen.
+ *
+ * @package PoorVida\TaxReports
+ */
+
+declare( strict_types=1 );
+
+namespace PoorVida\TaxReports\Admin;
+
+use PoorVida\TaxReports\Cost\CostResolver;
+use PoorVida\TaxReports\Support\Options;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * BOM connection details and snapshot timing.
+ */
+final class SettingsPage {
+
+	private const NONCE = 'pvtax_save_settings';
+
+	/**
+	 * Hook the save handler.
+	 */
+	public function register(): void {
+		add_action( 'admin_post_pvtax_save_settings', [ $this, 'handle_save' ] );
+	}
+
+	/**
+	 * Persist submitted settings.
+	 */
+	public function handle_save(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You are not allowed to change these settings.', 'pv-tax-reports' ), 403 );
+		}
+
+		check_admin_referer( self::NONCE );
+
+		$values = [
+			'bom_url'       => esc_url_raw( wp_unslash( $_POST['bom_url'] ?? '' ) ),
+			'snapshot_time' => sanitize_text_field( wp_unslash( $_POST['snapshot_time'] ?? '' ) ),
+			'cogs_meta_key' => sanitize_key( wp_unslash( $_POST['cogs_meta_key'] ?? '' ) ),
+			'github_repo'   => sanitize_text_field( wp_unslash( $_POST['github_repo'] ?? '' ) ),
+		];
+
+		/*
+		 * An empty API key field leaves the stored key alone, so the masked
+		 * field can be submitted untouched without wiping the key. Clearing it
+		 * is done with the explicit checkbox.
+		 */
+		$submitted_key = trim( sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) ) );
+
+		if ( '' !== $submitted_key ) {
+			$values['api_key'] = $submitted_key;
+		} elseif ( isset( $_POST['clear_api_key'] ) ) {
+			$values['api_key'] = '';
+		}
+
+		Options::update( $values );
+
+		wp_safe_redirect(
+			add_query_arg(
+				[
+					'page'    => AdminMenu::SLUG_SETTINGS,
+					'updated' => '1',
+				],
+				admin_url( 'admin.php' )
+			)
+		);
+
+		exit;
+	}
+
+	/**
+	 * Render the screen.
+	 */
+	public function render(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			return;
+		}
+
+		$options = Options::all();
+		$costs   = new CostResolver();
+
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Tax Reports Settings', 'pv-tax-reports' ); ?></h1>
+
+			<?php if ( isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only notice flag. ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'pv-tax-reports' ); ?></p></div>
+			<?php endif; ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="pvtax_save_settings" />
+				<?php wp_nonce_field( self::NONCE ); ?>
+
+				<h2><?php esc_html_e( 'BOM connection', 'pv-tax-reports' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Not yet used. The read-only cost endpoint on BOM has to exist before the cost sync can run; these fields are here so the credentials are in place when it does.', 'pv-tax-reports' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="pvtax-bom-url"><?php esc_html_e( 'BOM URL', 'pv-tax-reports' ); ?></label></th>
+						<td>
+							<input name="bom_url" id="pvtax-bom-url" type="url" class="regular-text" value="<?php echo esc_attr( $options['bom_url'] ); ?>" />
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="pvtax-api-key"><?php esc_html_e( 'API key', 'pv-tax-reports' ); ?></label></th>
+						<td>
+							<?php if ( Options::api_key_is_constant() ) : ?>
+								<p><em><?php esc_html_e( 'Set by the PVTAX_BOM_API_KEY constant in wp-config.php. Remove the constant to manage the key here.', 'pv-tax-reports' ); ?></em></p>
+							<?php else : ?>
+								<input name="api_key" id="pvtax-api-key" type="password" class="regular-text" autocomplete="off"
+									placeholder="<?php echo '' !== $options['api_key'] ? esc_attr__( 'Saved — leave blank to keep', 'pv-tax-reports' ) : ''; ?>" />
+								<p class="description">
+									<label><input type="checkbox" name="clear_api_key" value="1" /> <?php esc_html_e( 'Clear the saved key', 'pv-tax-reports' ); ?></label>
+								</p>
+								<p class="description"><?php esc_html_e( 'Preferably define PVTAX_BOM_API_KEY in wp-config.php instead, so the key never lands in the database.', 'pv-tax-reports' ); ?></p>
+							<?php endif; ?>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Stock snapshots', 'pv-tax-reports' ); ?></h2>
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="pvtax-snapshot-time"><?php esc_html_e( 'Daily snapshot time', 'pv-tax-reports' ); ?></label></th>
+						<td>
+							<input name="snapshot_time" id="pvtax-snapshot-time" type="time" value="<?php echo esc_attr( $options['snapshot_time'] ); ?>" />
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: site timezone name. */
+									esc_html__( 'Site time (%s). Late evening is best: the snapshot should land after the day\'s sales, not in the middle of them.', 'pv-tax-reports' ),
+									esc_html( wp_timezone_string() )
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="pvtax-cogs-meta-key"><?php esc_html_e( 'Cost meta key (fallback)', 'pv-tax-reports' ); ?></label></th>
+						<td>
+							<input name="cogs_meta_key" id="pvtax-cogs-meta-key" type="text" class="regular-text" value="<?php echo esc_attr( $options['cogs_meta_key'] ); ?>" />
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: description of the active cost source. */
+									esc_html__( 'Only used when WooCommerce\'s own Cost of Goods Sold API is unavailable. Currently reading from: %s', 'pv-tax-reports' ),
+									esc_html( $costs->describe_source() )
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Updates', 'pv-tax-reports' ); ?></h2>
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="pvtax-github-repo"><?php esc_html_e( 'GitHub repository', 'pv-tax-reports' ); ?></label></th>
+						<td>
+							<input name="github_repo" id="pvtax-github-repo" type="text" class="regular-text" value="<?php echo esc_attr( $options['github_repo'] ); ?>" />
+							<p class="description"><?php esc_html_e( 'owner/repo. Updates are offered from published releases.', 'pv-tax-reports' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<?php submit_button(); ?>
+			</form>
+		</div>
+		<?php
+	}
+}

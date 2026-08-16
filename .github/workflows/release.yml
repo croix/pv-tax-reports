@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the plugin zip
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          HEADER_VERSION="$(sed -n 's/^ \* Version: *//p' pv-tax-reports.php | tr -d '[:space:]')"
+
+          if [ "$VERSION" != "$HEADER_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match the plugin header version $HEADER_VERSION" >&2
+            exit 1
+          fi
+
+          # The folder inside the zip must match the installed plugin folder, or
+          # WordPress installs a second copy alongside the existing one instead
+          # of updating it.
+          mkdir -p build/pv-tax-reports
+          rsync -a --exclude-from=.distignore ./ build/pv-tax-reports/
+          cd build && zip -rq pv-tax-reports.zip pv-tax-reports
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/pv-tax-reports.zip
+          generate_release_notes: true

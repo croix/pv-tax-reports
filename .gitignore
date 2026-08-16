@@ -1,0 +1,17 @@
+/vendor/
+/node_modules/
+/build/
+/.phpunit.cache/
+.phpunit.result.cache
+.phpcs.cache
+phpcs.xml
+phpstan.neon
+phpunit.xml
+.DS_Store
+
+# Internal working documents — deliberately not published.
+#
+# This repository is public. Neither of these is needed by anyone installing or
+# maintaining the plugin; README carries what is. Keep both local.
+/SCOPE.md
+/docs/
