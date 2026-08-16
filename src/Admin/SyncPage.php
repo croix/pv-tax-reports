@@ -248,7 +248,12 @@ final class SyncPage {
 						<tr>
 							<td><?php echo esc_html( $item['name'] ); ?></td>
 							<td><code><?php echo esc_html( $item['sku'] ); ?></code></td>
-							<td><?php echo esc_html( $item['matched_via'] ); ?></td>
+							<td>
+								<?php echo esc_html( $item['matched_via'] ); ?>
+								<?php if ( false === ( $item['option']['active'] ?? true ) ) : ?>
+									<br /><em><?php esc_html_e( '(discontinued in BOM)', 'pv-tax-reports' ); ?></em>
+								<?php endif; ?>
+							</td>
 							<td><?php echo esc_html( null === $item['old_cost'] ? __( '— (uncosted)', 'pv-tax-reports' ) : number_format( (float) $item['old_cost'], 2 ) ); ?></td>
 							<td>
 								<?php if ( null === $item['new_cost'] ) : ?>
@@ -358,13 +363,18 @@ final class SyncPage {
 	 * @param array<string, mixed> $option BOM package option.
 	 */
 	private function option_label( array $option ): string {
-		$parts   = [];
-		$parts[] = is_string( $option['recipeName'] ?? null ) && '' !== $option['recipeName']
+		$recipe_name = is_string( $option['recipeName'] ?? null ) && '' !== $option['recipeName']
 			? $option['recipeName']
 			: __( '(unnamed recipe)', 'pv-tax-reports' );
 
-		$size = $option['packageSize'] ?? null;
-		$unit = is_string( $option['packageUnit'] ?? null ) ? $option['packageUnit'] : null;
+		if ( false === ( $option['active'] ?? true ) ) {
+			/* translators: %s: recipe name. */
+			$recipe_name = sprintf( __( '%s (discontinued)', 'pv-tax-reports' ), $recipe_name );
+		}
+
+		$parts = [ $recipe_name ];
+		$size  = $option['packageSize'] ?? null;
+		$unit  = is_string( $option['packageUnit'] ?? null ) ? $option['packageUnit'] : null;
 
 		if ( is_numeric( $size ) && null !== $unit && '' !== $unit ) {
 			$parts[] = $size . ' ' . $unit;

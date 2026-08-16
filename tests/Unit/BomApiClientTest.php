@@ -20,6 +20,14 @@ final class BomApiClientTest extends TestCase {
 		parent::setUp();
 
 		Functions\stubTranslationFunctions();
+
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains( $url, '?' ) ? '&' : '?';
+
+				return $url . $separator . rawurlencode( $key ) . '=' . rawurlencode( $value );
+			}
+		);
 	}
 
 	protected function tearDown(): void {
@@ -65,7 +73,7 @@ final class BomApiClientTest extends TestCase {
 		Functions\expect( 'wp_remote_get' )
 			->once()
 			->with(
-				'https://bom.example.com/api/external/costs',
+				'https://bom.example.com/api/external/costs?includeInactive=1',
 				Mockery::on( static fn ( array $args ): bool => 'Bearer secret-key' === ( $args['headers']['Authorization'] ?? null ) )
 			)
 			->andReturn( [ 'response' => [ 'code' => 200 ] ] );
@@ -85,6 +93,33 @@ final class BomApiClientTest extends TestCase {
 		$result = ( new BomApiClient() )->fetch();
 
 		$this->assertTrue( $result['ok'] );
+	}
+
+	/**
+	 * Discontinued options carry inventory that doesn't disappear the day
+	 * they're marked discontinued — omitting this param would silently make
+	 * them permanently unmappable.
+	 */
+	public function test_it_always_asks_for_discontinued_options_too(): void {
+		$this->stub_options( 'https://bom.example.com', 'a-key' );
+
+		$captured_url = null;
+
+		Functions\when( 'wp_remote_get' )->alias(
+			static function ( string $url ) use ( &$captured_url ) {
+				$captured_url = $url;
+
+				return [ 'response' => [ 'code' => 200 ] ];
+			}
+		);
+
+		Functions\when( 'is_wp_error' )->justReturn( false );
+		Functions\when( 'wp_remote_retrieve_response_code' )->justReturn( 200 );
+		Functions\when( 'wp_remote_retrieve_body' )->justReturn( self::encode( [ 'options' => [] ] ) );
+
+		( new BomApiClient() )->fetch();
+
+		$this->assertStringContainsString( 'includeInactive=1', (string) $captured_url );
 	}
 
 	public function test_a_401_gives_a_specific_message_without_revealing_which_reason(): void {

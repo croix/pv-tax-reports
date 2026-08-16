@@ -44,8 +44,17 @@ final class BomApiClient {
 			return $this->failure( __( 'BOM API key is not configured. Set it on the Tax Reports Settings screen.', 'pv-tax-reports' ) );
 		}
 
+		/*
+		 * Discontinued recipes are excluded by default, but their inventory
+		 * doesn't vanish the day they're marked discontinued — it still needs
+		 * a cost until it sells out. Always pulling inactive options too is
+		 * what makes them mappable at all; each carries active:false so the
+		 * UI can flag it.
+		 */
+		$url = add_query_arg( 'includeInactive', '1', $base . self::PATH );
+
 		$response = wp_remote_get(
-			$base . self::PATH,
+			$url,
 			[
 				'timeout' => self::TIMEOUT,
 				'headers' => [

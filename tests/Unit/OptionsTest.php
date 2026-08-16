@@ -79,4 +79,22 @@ final class OptionsTest extends TestCase {
 
 		$this->assertSame( 'https://bom.example.com', Options::bom_url() );
 	}
+
+	public function test_no_excluded_categories_by_default(): void {
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		$this->assertSame( [], Options::excluded_category_slugs() );
+	}
+
+	public function test_it_splits_and_trims_excluded_categories(): void {
+		Functions\when( 'get_option' )->justReturn( [ 'excluded_categories' => ' clothing, merch ,bundles' ] );
+
+		$this->assertSame( [ 'clothing', 'merch', 'bundles' ], Options::excluded_category_slugs() );
+	}
+
+	public function test_excluded_categories_drops_empty_entries_from_stray_commas(): void {
+		Functions\when( 'get_option' )->justReturn( [ 'excluded_categories' => 'clothing,,  ,merch' ] );
+
+		$this->assertSame( [ 'clothing', 'merch' ], Options::excluded_category_slugs() );
+	}
 }

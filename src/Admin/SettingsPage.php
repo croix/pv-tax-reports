@@ -39,10 +39,11 @@ final class SettingsPage {
 		check_admin_referer( self::NONCE );
 
 		$values = [
-			'bom_url'       => esc_url_raw( wp_unslash( $_POST['bom_url'] ?? '' ) ),
-			'snapshot_time' => sanitize_text_field( wp_unslash( $_POST['snapshot_time'] ?? '' ) ),
-			'cogs_meta_key' => sanitize_key( wp_unslash( $_POST['cogs_meta_key'] ?? '' ) ),
-			'github_repo'   => sanitize_text_field( wp_unslash( $_POST['github_repo'] ?? '' ) ),
+			'bom_url'             => esc_url_raw( wp_unslash( $_POST['bom_url'] ?? '' ) ),
+			'snapshot_time'       => sanitize_text_field( wp_unslash( $_POST['snapshot_time'] ?? '' ) ),
+			'cogs_meta_key'       => sanitize_key( wp_unslash( $_POST['cogs_meta_key'] ?? '' ) ),
+			'github_repo'         => sanitize_text_field( wp_unslash( $_POST['github_repo'] ?? '' ) ),
+			'excluded_categories' => sanitize_text_field( wp_unslash( $_POST['excluded_categories'] ?? '' ) ),
 		];
 
 		/*
@@ -156,6 +157,18 @@ final class SettingsPage {
 								);
 								?>
 							</p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Cost sync', 'pv-tax-reports' ); ?></h2>
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="pvtax-excluded-categories"><?php esc_html_e( 'Excluded categories', 'pv-tax-reports' ); ?></label></th>
+						<td>
+							<input name="excluded_categories" id="pvtax-excluded-categories" type="text" class="regular-text" value="<?php echo esc_attr( $options['excluded_categories'] ); ?>" placeholder="clothing" />
+							<p class="description"><?php esc_html_e( 'Comma-separated product category slugs to leave out of the cost sync entirely — for example, merch that has no BOM cost at all. Grouped and bundle products are always left out; their component products are mapped individually instead.', 'pv-tax-reports' ); ?></p>
 						</td>
 					</tr>
 				</table>

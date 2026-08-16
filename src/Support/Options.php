@@ -28,11 +28,12 @@ final class Options {
 			// Deliberately empty. This is a public repository, and hardcoding
 			// the host would advertise it for no benefit; it is entered once on
 			// the settings screen.
-			'bom_url'       => '',
-			'api_key'       => '',
-			'snapshot_time' => '23:45',
-			'cogs_meta_key' => '_cogs_value',
-			'github_repo'   => 'croix/pv-tax-reports',
+			'bom_url'             => '',
+			'api_key'             => '',
+			'snapshot_time'       => '23:45',
+			'cogs_meta_key'       => '_cogs_value',
+			'github_repo'         => 'croix/pv-tax-reports',
+			'excluded_categories' => '',
 		];
 	}
 
@@ -112,6 +113,22 @@ final class Options {
 		$key = trim( self::get( 'cogs_meta_key' ) );
 
 		return '' !== $key ? $key : '_cogs_value';
+	}
+
+	/**
+	 * Product category slugs excluded from the cost sync entirely — e.g.
+	 * merch that isn't costed from BOM at all.
+	 *
+	 * @return list<string>
+	 */
+	public static function excluded_category_slugs(): array {
+		$raw = trim( self::get( 'excluded_categories' ) );
+
+		if ( '' === $raw ) {
+			return [];
+		}
+
+		return array_values( array_filter( array_map( 'trim', explode( ',', $raw ) ) ) );
 	}
 
 	/**

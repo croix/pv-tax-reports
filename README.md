@@ -137,6 +137,22 @@ Every pulled option is archived to `{prefix}pvtax_costs` on apply, matched or
 not, so an option unmapped today still has cost history once it is mapped
 later.
 
+**Discontinued recipes are pulled too, and flagged.** A recipe marked
+discontinued in BOM doesn't stop having inventory on the shelf the same day —
+it needs a cost until it sells out. The sync always asks BOM for inactive
+options as well as active ones, and any that are discontinued show
+"(discontinued)" wherever they appear, including next to a product that
+matched one automatically by SKU.
+
+**Some products are never worth checking against BOM at all.** Grouped and
+bundle products are always left out — they compose already-mapped simple
+products rather than carrying their own BOM cost, so the base products get
+mapped individually and the parent doesn't need to be. A store's non-food
+categories can be left out too, with the **Excluded categories** field on the
+settings screen (comma-separated category slugs, e.g. `clothing`) — otherwise
+they'd just clutter the unmapped-products list every sync with nothing to map
+them to.
+
 ### Uncosted is not zero
 
 A product with no cost on file records `NULL`, never `0.00`, and is counted and
@@ -188,6 +204,7 @@ publishes the release. Sites pick it up through the normal update screen.
 |---|---|---|
 | `pvtax_product_unit_cost` | filter | Override the resolved unit cost. The BOM sync does not need this — it writes the same field directly — so this is the escape hatch for anything costed some other way. |
 | `pvtax_cogs_capture_statuses` | filter | Order statuses that freeze costs. Default `[ 'processing', 'completed' ]`. |
+| `pvtax_excluded_product_types` | filter | Product types left out of the cost sync entirely. Default `[ 'grouped', 'bundle' ]`. |
 | `pvtax_snapshot_captured` | action | Fires after a daily snapshot, with the run summary. |
 | `pvtax_order_cogs_captured` | action | Fires after an order's costs are frozen. |
 

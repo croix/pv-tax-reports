@@ -9,8 +9,10 @@ declare( strict_types=1 );
 
 namespace PoorVida\TaxReports\Cost;
 
+use PoorVida\TaxReports\Support\Options;
 use PoorVida\TaxReports\Support\ProductPager;
 use WC_Product;
+use WC_Product_Variation;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -266,10 +268,28 @@ final class CostSyncService {
 	 * override, regardless of whether it manages stock — cost applies whether
 	 * or not the snapshotter is tracking quantity for it.
 	 *
+	 * Grouped products and bundles are left out on purpose: they compose
+	 * already-mapped simple products rather than carrying their own BOM cost,
+	 * so mapping the parent individually doesn't make sense. A store's
+	 * non-food categories (merch, clothing) are left out too, per the
+	 * "Excluded categories" setting, since they have no BOM cost at all and
+	 * would otherwise just clutter the unmapped list every sync.
+	 *
 	 * @return iterable<WC_Product>
 	 */
 	private function eligible_products(): iterable {
+		$excluded_types      = $this->excluded_product_types();
+		$excluded_categories = Options::excluded_category_slugs();
+
 		foreach ( ProductPager::each() as $product ) {
+			if ( in_array( $product->get_type(), $excluded_types, true ) ) {
+				continue;
+			}
+
+			if ( [] !== $excluded_categories && has_term( $excluded_categories, 'product_cat', $this->category_owner_id( $product ) ) ) {
+				continue;
+			}
+
 			$sku      = $product->get_sku();
 			$override = $product->get_meta( ProductMapper::OVERRIDE_META_KEY, true );
 
@@ -279,5 +299,34 @@ final class CostSyncService {
 
 			yield $product;
 		}
+	}
+
+	/**
+	 * Product types that never enter the cost sync, regardless of settings.
+	 *
+	 * @return list<string>
+	 */
+	private function excluded_product_types(): array {
+		/**
+		 * Product types excluded from the cost sync.
+		 *
+		 * @param list<string> $types Product type slugs.
+		 */
+		$types = apply_filters( 'pvtax_excluded_product_types', [ 'grouped', 'bundle' ] );
+
+		return is_array( $types ) ? array_map( 'strval', $types ) : [ 'grouped', 'bundle' ];
+	}
+
+	/**
+	 * The post ID that actually carries `product_cat` terms.
+	 *
+	 * A variation's own post is never categorized — its parent is — so a
+	 * category exclusion checked against the variation itself would silently
+	 * never match.
+	 *
+	 * @param WC_Product $product Product or variation.
+	 */
+	private function category_owner_id( WC_Product $product ): int {
+		return $product instanceof WC_Product_Variation ? $product->get_parent_id() : $product->get_id();
 	}
 }
