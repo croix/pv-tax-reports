@@ -47,7 +47,7 @@ final class CostSyncService {
 	/**
 	 * Fetch from BOM, match against products, and store the plan for review.
 	 *
-	 * @return array{ok:true, token:string, as_of:string, currency:string, matched:list<array<string, mixed>>, unmapped_options:list<array<string, mixed>>, unmapped_products:list<array<string, mixed>>}|array{ok:false, error:string}
+	 * @return array{ok:true, token:string, as_of:string, currency:string, matched:list<array<string, mixed>>, unmapped_options:list<array<string, mixed>>, unmapped_products:list<array{product_id:int, sku:string, name:string, override:?string}>}|array{ok:false, error:string}
 	 */
 	public function build_preview(): array {
 		$fetch = $this->client->fetch();
@@ -100,6 +100,7 @@ final class CostSyncService {
 				'product_id' => $item['product_id'],
 				'sku'        => $item['sku'],
 				'name'       => $product->get_name(),
+				'override'   => $item['override'],
 			];
 		}
 
@@ -179,6 +180,56 @@ final class CostSyncService {
 			'unmapped_options'  => count( $stored['unmapped_options'] ),
 			'unmapped_products' => count( $stored['unmapped_products'] ),
 		];
+	}
+
+	/**
+	 * Manually pin a product to a specific BOM package option.
+	 *
+	 * The stored value is checked at the next preview, as the last resort
+	 * after MPN and UPC — it does not take effect retroactively against the
+	 * preview already on screen, since that preview is a frozen snapshot.
+	 *
+	 * @param int    $product_id       Product to map.
+	 * @param string $package_option_id BOM `packageOptionId` to pin it to.
+	 *
+	 * @return bool Whether the product was found and updated.
+	 */
+	public function save_override( int $product_id, string $package_option_id ): bool {
+		$product = wc_get_product( $product_id );
+
+		if ( ! $product instanceof WC_Product ) {
+			return false;
+		}
+
+		$product->update_meta_data( ProductMapper::OVERRIDE_META_KEY, $package_option_id );
+		$product->save();
+
+		// The picture just changed; the standing preview no longer reflects it.
+		delete_transient( self::PREVIEW_TRANSIENT );
+
+		return true;
+	}
+
+	/**
+	 * Remove a manual mapping.
+	 *
+	 * @param int $product_id Product to unmap.
+	 *
+	 * @return bool Whether the product was found and updated.
+	 */
+	public function clear_override( int $product_id ): bool {
+		$product = wc_get_product( $product_id );
+
+		if ( ! $product instanceof WC_Product ) {
+			return false;
+		}
+
+		$product->delete_meta_data( ProductMapper::OVERRIDE_META_KEY );
+		$product->save();
+
+		delete_transient( self::PREVIEW_TRANSIENT );
+
+		return true;
 	}
 
 	/**

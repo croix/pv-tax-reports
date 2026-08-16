@@ -119,9 +119,19 @@ sync, not just the first, is preview then apply, never a silent write:
 
 Matching is by SKU against **both** MPN and UPC — a WooCommerce SKU is
 sometimes either — with no fuzzy matching; a wrong cost is worse than an
-obvious gap. A product can also be pinned to a specific BOM package option by
-setting its `_pvtax_bom_package_option_id` meta to BOM's `packageOptionId`,
-used only when neither MPN nor UPC matches the SKU.
+obvious gap.
+
+**Products with no match can be mapped by hand, right on the preview.** Each
+unmatched product gets a dropdown of every unclaimed BOM option, labelled with
+enough to tell near-identical options apart — recipe name, size and unit,
+container type, and MPN or UPC (e.g. "Verde Ghost Salsa — 16 ounces — bottles
+— PV-SALSA-VERDE-16"). Picking one and saving sets the product's
+`_pvtax_bom_package_option_id` meta to BOM's `packageOptionId`, which the
+matcher checks as the last resort after MPN and UPC. A mapping made this way
+invalidates the current preview — preview again to confirm it took and see the
+resulting cost. A mapping made in error can be removed with **Clear mapping**
+next to any row matched via override, with no need to touch product meta by
+hand either way.
 
 Every pulled option is archived to `{prefix}pvtax_costs` on apply, matched or
 not, so an option unmapped today still has cost history once it is mapped

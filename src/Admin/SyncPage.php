@@ -36,11 +36,13 @@ final class SyncPage {
 	public function __construct( private readonly CostSyncService $sync ) {}
 
 	/**
-	 * Hook the preview and apply handlers.
+	 * Hook the preview, apply and mapping handlers.
 	 */
 	public function register(): void {
 		add_action( 'admin_post_pvtax_preview_sync', [ $this, 'handle_preview' ] );
 		add_action( 'admin_post_pvtax_apply_sync', [ $this, 'handle_apply' ] );
+		add_action( 'admin_post_pvtax_save_override', [ $this, 'handle_save_override' ] );
+		add_action( 'admin_post_pvtax_clear_override', [ $this, 'handle_clear_override' ] );
 	}
 
 	/**
@@ -97,6 +99,62 @@ final class SyncPage {
 	}
 
 	/**
+	 * Pin a product to a BOM option chosen from the preview's unclaimed list.
+	 */
+	public function handle_save_override(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You are not allowed to sync costs.', 'pv-tax-reports' ), 403 );
+		}
+
+		$product_id = absint( wp_unslash( $_POST['product_id'] ?? 0 ) );
+
+		check_admin_referer( $this->map_nonce_action( $product_id ) );
+
+		$package_option_id = sanitize_text_field( wp_unslash( $_POST['package_option_id'] ?? '' ) );
+
+		$args = [ 'page' => AdminMenu::SLUG_SYNC ];
+
+		if ( 0 === $product_id || '' === $package_option_id ) {
+			$args['sync_error'] = rawurlencode( __( 'Choose a BOM option to map to.', 'pv-tax-reports' ) );
+		} elseif ( ! $this->sync->save_override( $product_id, $package_option_id ) ) {
+			$args['sync_error'] = rawurlencode( __( 'That product could not be found.', 'pv-tax-reports' ) );
+		} else {
+			$args['mapped'] = '1';
+		}
+
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
+
+		exit;
+	}
+
+	/**
+	 * Remove a manual mapping.
+	 */
+	public function handle_clear_override(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You are not allowed to sync costs.', 'pv-tax-reports' ), 403 );
+		}
+
+		$product_id = absint( wp_unslash( $_POST['product_id'] ?? 0 ) );
+
+		check_admin_referer( $this->map_nonce_action( $product_id ) );
+
+		$this->sync->clear_override( $product_id );
+
+		wp_safe_redirect(
+			add_query_arg(
+				[
+					'page'     => AdminMenu::SLUG_SYNC,
+					'unmapped' => '1',
+				],
+				admin_url( 'admin.php' )
+			)
+		);
+
+		exit;
+	}
+
+	/**
 	 * Render the screen.
 	 */
 	public function render(): void {
@@ -145,11 +203,19 @@ final class SyncPage {
 	}
 
 	/**
-	 * Render the stored preview and the apply control.
+	 * Render the stored preview, the mapping tools, and the apply control.
 	 *
 	 * @param array<string, mixed> $preview Preview payload.
 	 */
 	private function render_preview( array $preview ): void {
+		// Only options carrying a stable packageOptionId can be picked from a mapping list.
+		$selectable_options = array_values(
+			array_filter(
+				$preview['unmapped_options'],
+				static fn( array $option ): bool => is_string( $option['packageOptionId'] ?? null ) && '' !== $option['packageOptionId']
+			)
+		);
+
 		?>
 		<h2><?php esc_html_e( 'Preview', 'pv-tax-reports' ); ?></h2>
 
@@ -166,7 +232,7 @@ final class SyncPage {
 		<?php if ( [] === $preview['matched'] ) : ?>
 			<p><?php esc_html_e( 'No products matched a BOM cost.', 'pv-tax-reports' ); ?></p>
 		<?php else : ?>
-			<table class="widefat striped" style="max-width:60rem">
+			<table class="widefat striped" style="max-width:65rem">
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Product', 'pv-tax-reports' ); ?></th>
@@ -174,6 +240,7 @@ final class SyncPage {
 						<th><?php esc_html_e( 'Matched via', 'pv-tax-reports' ); ?></th>
 						<th><?php esc_html_e( 'Current cost', 'pv-tax-reports' ); ?></th>
 						<th><?php esc_html_e( 'New cost', 'pv-tax-reports' ); ?></th>
+						<th></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -190,6 +257,16 @@ final class SyncPage {
 									<strong><?php echo esc_html( number_format( (float) $item['new_cost'], 2 ) ); ?></strong>
 								<?php endif; ?>
 							</td>
+							<td>
+								<?php if ( 'override' === $item['matched_via'] ) : ?>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+										<input type="hidden" name="action" value="pvtax_clear_override" />
+										<input type="hidden" name="product_id" value="<?php echo esc_attr( (string) $item['product_id'] ); ?>" />
+										<?php wp_nonce_field( $this->map_nonce_action( $item['product_id'] ) ); ?>
+										<button type="submit" class="button-link button-link-delete"><?php esc_html_e( 'Clear mapping', 'pv-tax-reports' ); ?></button>
+									</form>
+								<?php endif; ?>
+							</td>
 						</tr>
 					<?php endforeach; ?>
 				</tbody>
@@ -199,13 +276,54 @@ final class SyncPage {
 		<?php if ( [] !== $preview['unmapped_products'] ) : ?>
 			<h3><?php esc_html_e( 'Products with no BOM match', 'pv-tax-reports' ); ?></h3>
 			<p class="description" style="max-width:52rem">
-				<?php esc_html_e( "Their SKU matched neither an MPN nor a UPC in BOM, and they carry no manual override. Their cost will not change. If a product's SKU is a UPC that BOM does not have on file yet, add it there rather than loosening how this plugin matches.", 'pv-tax-reports' ); ?>
+				<?php esc_html_e( "Their SKU matched neither an MPN nor a UPC in BOM, and they carry no working manual override. Their cost will not change. If a product's SKU is a UPC that BOM does not have on file yet, add it there rather than loosening how this plugin matches — or pick the matching BOM option below to map it by hand, sized to help you tell options apart.", 'pv-tax-reports' ); ?>
 			</p>
-			<ul style="list-style:disc;margin-left:1.5rem">
-				<?php foreach ( $preview['unmapped_products'] as $item ) : ?>
-					<li><?php echo esc_html( $item['name'] ); ?> — <code><?php echo esc_html( '' !== $item['sku'] ? $item['sku'] : __( '(no SKU)', 'pv-tax-reports' ) ); ?></code></li>
-				<?php endforeach; ?>
-			</ul>
+			<table class="widefat striped" style="max-width:65rem">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Product', 'pv-tax-reports' ); ?></th>
+						<th><?php esc_html_e( 'SKU', 'pv-tax-reports' ); ?></th>
+						<th><?php esc_html_e( 'Map to', 'pv-tax-reports' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $preview['unmapped_products'] as $item ) : ?>
+						<tr>
+							<td><?php echo esc_html( $item['name'] ); ?></td>
+							<td><code><?php echo esc_html( '' !== $item['sku'] ? $item['sku'] : __( '(no SKU)', 'pv-tax-reports' ) ); ?></code></td>
+							<td>
+								<?php if ( null !== $item['override'] && '' !== $item['override'] ) : ?>
+									<p class="description" style="margin:0 0 .5em">
+										<?php
+										printf(
+											/* translators: %s: the stored override value. */
+											esc_html__( 'Currently mapped to "%s", which did not match anything in this pull — check for a typo or a discontinued item.', 'pv-tax-reports' ),
+											esc_html( $item['override'] )
+										);
+										?>
+									</p>
+								<?php endif; ?>
+								<?php if ( [] === $selectable_options ) : ?>
+									<em><?php esc_html_e( 'No unclaimed BOM options to map to.', 'pv-tax-reports' ); ?></em>
+								<?php else : ?>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap">
+										<input type="hidden" name="action" value="pvtax_save_override" />
+										<input type="hidden" name="product_id" value="<?php echo esc_attr( (string) $item['product_id'] ); ?>" />
+										<?php wp_nonce_field( $this->map_nonce_action( $item['product_id'] ) ); ?>
+										<select name="package_option_id">
+											<option value=""><?php esc_html_e( '— choose a BOM option —', 'pv-tax-reports' ); ?></option>
+											<?php foreach ( $selectable_options as $option ) : ?>
+												<option value="<?php echo esc_attr( $option['packageOptionId'] ); ?>"><?php echo esc_html( $this->option_label( $option ) ); ?></option>
+											<?php endforeach; ?>
+										</select>
+										<?php submit_button( __( 'Save mapping', 'pv-tax-reports' ), 'secondary', 'submit', false ); ?>
+									</form>
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
 		<?php endif; ?>
 
 		<?php if ( [] !== $preview['unmapped_options'] ) : ?>
@@ -215,12 +333,7 @@ final class SyncPage {
 			</p>
 			<ul style="list-style:disc;margin-left:1.5rem">
 				<?php foreach ( $preview['unmapped_options'] as $option ) : ?>
-					<li>
-						<?php echo esc_html( is_string( $option['recipeName'] ?? null ) ? $option['recipeName'] : __( '(unnamed recipe)', 'pv-tax-reports' ) ); ?>
-						<?php if ( is_string( $option['mpn'] ?? null ) || is_string( $option['upc'] ?? null ) ) : ?>
-							— <code><?php echo esc_html( $option['mpn'] ?? $option['upc'] ); ?></code>
-						<?php endif; ?>
-					</li>
+					<li><?php echo esc_html( $this->option_label( $option ) ); ?></li>
 				<?php endforeach; ?>
 			</ul>
 		<?php endif; ?>
@@ -238,7 +351,66 @@ final class SyncPage {
 	}
 
 	/**
-	 * Notices from a redirect after preview or apply.
+	 * Human-readable label for a BOM package option, distinguishing it from
+	 * others on the same recipe by size, container and any operator label —
+	 * exactly the detail needed to pick the right one from a list.
+	 *
+	 * @param array<string, mixed> $option BOM package option.
+	 */
+	private function option_label( array $option ): string {
+		$parts   = [];
+		$parts[] = is_string( $option['recipeName'] ?? null ) && '' !== $option['recipeName']
+			? $option['recipeName']
+			: __( '(unnamed recipe)', 'pv-tax-reports' );
+
+		$size = $option['packageSize'] ?? null;
+		$unit = is_string( $option['packageUnit'] ?? null ) ? $option['packageUnit'] : null;
+
+		if ( is_numeric( $size ) && null !== $unit && '' !== $unit ) {
+			$parts[] = $size . ' ' . $unit;
+		} elseif ( is_numeric( $size ) ) {
+			$parts[] = (string) $size;
+		}
+
+		$container = is_string( $option['containerType'] ?? null ) ? $option['containerType'] : null;
+
+		if ( null !== $container && '' !== $container ) {
+			$parts[] = $container;
+		}
+
+		$label = is_string( $option['label'] ?? null ) ? $option['label'] : null;
+
+		if ( null !== $label && '' !== $label ) {
+			$parts[] = $label;
+		}
+
+		$identity = null;
+
+		if ( is_string( $option['mpn'] ?? null ) && '' !== $option['mpn'] ) {
+			$identity = $option['mpn'];
+		} elseif ( is_string( $option['upc'] ?? null ) && '' !== $option['upc'] ) {
+			$identity = $option['upc'];
+		}
+
+		if ( null !== $identity ) {
+			$parts[] = $identity;
+		}
+
+		return implode( ' — ', $parts );
+	}
+
+	/**
+	 * Nonce action for mapping actions on a specific product, so a nonce
+	 * issued for one product's form cannot be replayed against another.
+	 *
+	 * @param int $product_id Product being mapped or unmapped.
+	 */
+	private function map_nonce_action( int $product_id ): string {
+		return 'pvtax_map_product_' . $product_id;
+	}
+
+	/**
+	 * Notices from a redirect after preview, apply, or a mapping change.
 	 */
 	private function render_notices(): void {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only notice flags on a redirect target.
@@ -246,6 +418,20 @@ final class SyncPage {
 			printf(
 				'<div class="notice notice-error"><p>%s</p></div>',
 				esc_html( sanitize_text_field( wp_unslash( $_GET['sync_error'] ) ) )
+			);
+		}
+
+		if ( isset( $_GET['mapped'] ) ) {
+			printf(
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+				esc_html__( 'Mapping saved. Preview again to confirm it matched and see the new cost.', 'pv-tax-reports' )
+			);
+		}
+
+		if ( isset( $_GET['unmapped'] ) ) {
+			printf(
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+				esc_html__( 'Mapping cleared. Preview again to see current status.', 'pv-tax-reports' )
 			);
 		}
 

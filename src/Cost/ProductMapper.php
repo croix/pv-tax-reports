@@ -39,7 +39,7 @@ final class ProductMapper {
 	 * @return array{
 	 *     matched: list<array{product_id:int, sku:string, matched_via:string, option:array<string, mixed>}>,
 	 *     unmapped_options: list<array<string, mixed>>,
-	 *     unmapped_products: list<array{product_id:int, sku:string}>
+	 *     unmapped_products: list<array{product_id:int, sku:string, override:?string}>
 	 * }
 	 */
 	public static function match( array $bom_options, array $products ): array {
@@ -86,9 +86,16 @@ final class ProductMapper {
 			}
 
 			if ( null === $option ) {
+				/*
+				 * The override is carried through even though it did not match:
+				 * a non-null value here means the product has a stored override
+				 * that no longer points at a pulled option — worth surfacing as
+				 * a typo or a discontinued item, not just "unmapped".
+				 */
 				$unmapped_products[] = [
 					'product_id' => $product['product_id'],
 					'sku'        => $sku,
+					'override'   => $product['override'],
 				];
 
 				continue;

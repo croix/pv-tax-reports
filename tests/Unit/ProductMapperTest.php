@@ -122,6 +122,26 @@ final class ProductMapperTest extends TestCase {
 		$this->assertCount( 1, $result['unmapped_options'] );
 	}
 
+	/**
+	 * A stale override (pointing at an option no longer in the pull) must
+	 * still surface, so the sync screen can flag it as a typo or a
+	 * discontinued item rather than reporting a plain, unexplained gap.
+	 */
+	public function test_a_stale_override_is_carried_through_on_the_unmapped_entry(): void {
+		$products = [
+			[
+				'product_id' => 1,
+				'sku'        => 'SOME-OTHER-SKU',
+				'override'   => 'opt-does-not-exist',
+			],
+		];
+
+		$result = ProductMapper::match( [ $this->verde() ], $products );
+
+		$this->assertCount( 1, $result['unmapped_products'] );
+		$this->assertSame( 'opt-does-not-exist', $result['unmapped_products'][0]['override'] );
+	}
+
 	public function test_a_claimed_option_does_not_also_appear_unmapped(): void {
 		$products = [
 			[
