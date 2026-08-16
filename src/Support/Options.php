@@ -19,6 +19,17 @@ final class Options {
 	public const OPTION = 'pvtax_settings';
 
 	/**
+	 * The wrong fallback meta key shipped as the default through v0.4.0 —
+	 * WooCommerce's actual product-level COGS meta key is `_cogs_total_value`;
+	 * `_cogs_value` is what WooCommerce stores on *order items*, not products.
+	 * Any install that ever saved the settings screen before this was fixed
+	 * has this baked into its stored option, since the form round-trips
+	 * whatever value was showing — correcting the code default alone would
+	 * not correct an install already carrying it.
+	 */
+	private const LEGACY_WRONG_COGS_META_KEY = '_cogs_value';
+
+	/**
 	 * Defaults, also the shape of the stored array.
 	 *
 	 * @return array<string, string>
@@ -31,7 +42,7 @@ final class Options {
 			'bom_url'             => '',
 			'api_key'             => '',
 			'snapshot_time'       => '23:45',
-			'cogs_meta_key'       => '_cogs_value',
+			'cogs_meta_key'       => '_cogs_total_value',
 			'github_repo'         => 'croix/pv-tax-reports',
 			'excluded_categories' => '',
 		];
@@ -112,7 +123,7 @@ final class Options {
 	public static function cogs_meta_key(): string {
 		$key = trim( self::get( 'cogs_meta_key' ) );
 
-		return '' !== $key ? $key : '_cogs_value';
+		return '' !== $key ? $key : '_cogs_total_value';
 	}
 
 	/**
@@ -129,6 +140,26 @@ final class Options {
 		}
 
 		return array_values( array_filter( array_map( 'trim', explode( ',', $raw ) ) ) );
+	}
+
+	/**
+	 * Correct a stored `cogs_meta_key` still carrying the wrong historical
+	 * default.
+	 *
+	 * Idempotent and safe to call on every load: it only touches the option
+	 * when the stored value is exactly the known-wrong legacy default, never
+	 * a value anyone configured on purpose.
+	 */
+	public static function migrate_legacy_cogs_meta_key(): void {
+		$stored = get_option( self::OPTION );
+
+		if ( ! is_array( $stored ) || self::LEGACY_WRONG_COGS_META_KEY !== ( $stored['cogs_meta_key'] ?? null ) ) {
+			return;
+		}
+
+		$stored['cogs_meta_key'] = self::defaults()['cogs_meta_key'];
+
+		update_option( self::OPTION, $stored );
 	}
 
 	/**

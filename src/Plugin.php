@@ -19,6 +19,7 @@ use PoorVida\TaxReports\Cost\CostSyncService;
 use PoorVida\TaxReports\Snapshots\Scheduler;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
 use PoorVida\TaxReports\Snapshots\StockSnapshotRepository;
+use PoorVida\TaxReports\Support\Options;
 use PoorVida\TaxReports\Support\Schema;
 use PoorVida\TaxReports\Update\GitHubUpdater;
 
@@ -102,6 +103,7 @@ final class Plugin {
 		}
 
 		Schema::maybe_upgrade();
+		Options::migrate_legacy_cogs_meta_key();
 
 		$costs = new CostResolver();
 
