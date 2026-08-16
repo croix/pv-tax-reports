@@ -75,6 +75,7 @@ final class Schema {
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				mpn varchar(64) DEFAULT NULL,
 				upc varchar(64) DEFAULT NULL,
+				package_option_id varchar(64) DEFAULT NULL,
 				product_id bigint(20) unsigned DEFAULT NULL,
 				cost_per_container decimal(16,6) DEFAULT NULL,
 				ingredient_cost decimal(16,6) DEFAULT NULL,
@@ -85,6 +86,7 @@ final class Schema {
 				PRIMARY KEY  (id),
 				KEY mpn (mpn),
 				KEY upc (upc),
+				KEY package_option_id (package_option_id),
 				KEY product_id (product_id),
 				KEY effective_from (effective_from)
 			) {$collate};"

@@ -75,4 +75,20 @@ final class CostResolverTest extends TestCase {
 
 		$this->assertNull( ( new CostResolver() )->for_product( $product )['cost'] );
 	}
+
+	/**
+	 * The write path is the sync's half of the drift rule: it must land on
+	 * whichever field for_product() reads, or a synced cost would silently
+	 * fail to be picked up anywhere else in the plugin.
+	 */
+	public function test_writing_a_cost_lands_on_the_same_field_read_by_for_product(): void {
+		$product = Mockery::mock( WC_Product::class );
+		$product->shouldReceive( 'update_meta_data' )->once()->with( '_cogs_value', '3.5' );
+		$product->shouldReceive( 'save' )->once();
+		$product->shouldReceive( 'get_meta' )->with( '_cogs_value', true )->andReturn( '3.5' );
+
+		( new CostResolver() )->write( $product, 3.5 );
+
+		$this->assertSame( 3.5, ( new CostResolver() )->for_product( $product )['cost'] );
+	}
 }

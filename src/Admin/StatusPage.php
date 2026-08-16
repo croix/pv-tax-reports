@@ -151,7 +151,11 @@ final class StatusPage {
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Cost source', 'pv-tax-reports' ); ?></th>
-						<td><?php echo esc_html( $costs->describe_source() ); ?></td>
+						<td>
+							<?php echo esc_html( $costs->describe_source() ); ?>
+							—
+							<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . AdminMenu::SLUG_SYNC ) ); ?>"><?php esc_html_e( 'sync costs from BOM', 'pv-tax-reports' ); ?></a>
+						</td>
 					</tr>
 				</tbody>
 			</table>

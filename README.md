@@ -20,8 +20,8 @@ endpoint, are kept as internal working documents rather than published here.
 | Phase | Deliverable | State |
 |---|---|---|
 | 0 | Plugin skeleton, settings, GitHub release updater, PHPCS/PHPStan/PHPUnit | **done** |
-| 1 | BOM-side read-only cost API + key auth (*other repo*) | not started |
-| 2 | Cost sync, product↔BOM mapping, dry-run preview, unmapped warnings | not started |
+| 1 | BOM-side read-only cost API + key auth (*other repo*) | **done** |
+| 2 | Cost sync, product↔BOM mapping, dry-run preview, unmapped warnings | **done** |
 | 3 | Nightly stock snapshots + manual "snapshot now" | **done** |
 | 4 | Order COGS capture at sale | **done** |
 | 5 | Report 1 — inventory valuation as of a date | not started |
@@ -31,8 +31,9 @@ endpoint, are kept as internal working documents rather than published here.
 Phases 3 and 4 were built ahead of 1 and 2 on purpose: **they only produce data
 from the day they ship.** Every week they are not running is a week of history
 that cannot be reconstructed later. They read WooCommerce's own Cost of Goods
-Sold field, which is hand-maintained today; Phase 2 changes where that number
-comes from, not the shape of the history being recorded.
+Sold field, which was hand-maintained until the sync in Phase 2 took over
+writing it — Phase 2 changes where that number comes from, not the shape of
+the history already recorded.
 
 ## Install
 
@@ -49,9 +50,10 @@ scheduled. If it does not, nothing is being recorded.
 
 - **Daily snapshot time** — site local time. Late evening, after the day's
   sales.
-- **BOM URL and API key** — not used yet; the endpoint they point at does not
-  exist. Prefer defining the key in `wp-config.php` so it never lands in the
-  database:
+- **BOM URL and API key** — the key is issued from BOM itself: BOM → Settings
+  → API keys → Create key. The raw key is shown once, at creation; if it is
+  lost, issue a new one and revoke the old one from the same screen. Prefer
+  defining the key in `wp-config.php` so it never lands in the database:
 
   ```php
   define( 'PVTAX_BOM_API_KEY', '…' );
@@ -59,6 +61,9 @@ scheduled. If it does not, nothing is being recorded.
 
 - **Cost meta key** — only consulted when WooCommerce's own Cost of Goods Sold
   API is unavailable or disabled on the installed version.
+
+Once both are set, **WooCommerce → Sync Costs** pulls current costs from BOM.
+See "Syncing costs from BOM" below.
 
 ## How it works
 
@@ -91,8 +96,36 @@ reaches `processing` or `completed` — whichever comes first, since both count 
 a real sale. Capture is idempotent against a unique key on the order item, so
 the first transition wins and later ones are no-ops.
 
-Practical consequence: syncing costs from BOM will be safe to run as often as
-you like. It only ever affects sales that have not happened yet.
+Practical consequence: syncing costs from BOM is safe to run as often as you
+like. It only ever affects sales that have not happened yet.
+
+### Syncing costs from BOM
+
+**WooCommerce → Sync Costs.** WooCommerce's Cost of Goods Sold field was
+hand-maintained before this existed — a year of that work is real, so every
+sync, not just the first, is preview then apply, never a silent write:
+
+1. **Preview** pulls current costs from BOM and shows every product's current
+   value next to what it would become, plus two lists that are worth reading
+   rather than skimming: **BOM options with no matching product** (expected
+   for anything made for on-site service rather than sold packaged — check
+   anything else) and **products with no BOM match** (their SKU matched
+   neither an MPN nor a UPC in BOM; if it's a UPC that BOM hasn't recorded
+   yet, add it there rather than loosening how this plugin matches).
+2. **Apply** writes exactly what the preview showed. It does not re-check BOM,
+   so nothing changes that was not already on screen — even if BOM's prices
+   moved in the meantime. The preview expires after 10 minutes; preview again
+   to sync a later state.
+
+Matching is by SKU against **both** MPN and UPC — a WooCommerce SKU is
+sometimes either — with no fuzzy matching; a wrong cost is worse than an
+obvious gap. A product can also be pinned to a specific BOM package option by
+setting its `_pvtax_bom_package_option_id` meta to BOM's `packageOptionId`,
+used only when neither MPN nor UPC matches the SKU.
+
+Every pulled option is archived to `{prefix}pvtax_costs` on apply, matched or
+not, so an option unmapped today still has cost history once it is mapped
+later.
 
 ### Uncosted is not zero
 
@@ -106,7 +139,7 @@ Three custom tables, created with `dbDelta` on activation:
 
 | Table | Holds |
 |---|---|
-| `{prefix}pvtax_costs` | Append-only cost cache from BOM (Phase 2) |
+| `{prefix}pvtax_costs` | Append-only cost cache from BOM |
 | `{prefix}pvtax_stock_snapshots` | Daily stock per product, with the cost that day |
 | `{prefix}pvtax_order_cogs` | Cost frozen at the moment of sale |
 
@@ -133,7 +166,7 @@ Bump the `Version:` header in `pv-tax-reports.php` and the `VERSION` constant,
 then push a matching tag:
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
 CI verifies the tag matches the header, builds a correctly-foldered zip, and
@@ -143,7 +176,7 @@ publishes the release. Sites pick it up through the normal update screen.
 
 | Hook | Type | Purpose |
 |---|---|---|
-| `pvtax_product_unit_cost` | filter | Override the resolved unit cost. The seam the BOM cost cache uses in Phase 2. |
+| `pvtax_product_unit_cost` | filter | Override the resolved unit cost. The BOM sync does not need this — it writes the same field directly — so this is the escape hatch for anything costed some other way. |
 | `pvtax_cogs_capture_statuses` | filter | Order statuses that freeze costs. Default `[ 'processing', 'completed' ]`. |
 | `pvtax_snapshot_captured` | action | Fires after a daily snapshot, with the run summary. |
 | `pvtax_order_cogs_captured` | action | Fires after an order's costs are frozen. |

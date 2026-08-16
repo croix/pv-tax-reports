@@ -11,6 +11,7 @@ namespace PoorVida\TaxReports\Snapshots;
 
 use PoorVida\TaxReports\Cost\CostResolver;
 use PoorVida\TaxReports\Support\Dates;
+use PoorVida\TaxReports\Support\ProductPager;
 use WC_Product;
 
 defined( 'ABSPATH' ) || exit;
@@ -25,8 +26,6 @@ defined( 'ABSPATH' ) || exit;
 final class SnapshotService {
 
 	public const LAST_RUN_OPTION = 'pvtax_last_snapshot';
-
-	private const PAGE_SIZE = 200;
 
 	/**
 	 * Products passed over during the current run because they do not manage
@@ -136,44 +135,15 @@ final class SnapshotService {
 	 * @return iterable<WC_Product>
 	 */
 	private function stock_managed_products(): iterable {
-		$types = array_merge( array_keys( wc_get_product_types() ), [ 'variation' ] );
-		$page  = 1;
+		foreach ( ProductPager::each() as $product ) {
+			if ( true !== $product->get_manage_stock() ) {
+				++$this->skipped;
 
-		do {
-			$batch = wc_get_products(
-				[
-					'limit'   => self::PAGE_SIZE,
-					'page'    => $page,
-					'status'  => [ 'publish', 'private', 'draft' ],
-					'type'    => $types,
-					'orderby' => 'ID',
-					'order'   => 'ASC',
-					'return'  => 'objects',
-				]
-			);
-
-			if ( ! is_array( $batch ) ) {
-				return;
+				continue;
 			}
 
-			$fetched = count( $batch );
-
-			foreach ( $batch as $product ) {
-				if ( ! $product instanceof WC_Product ) {
-					continue;
-				}
-
-				if ( true !== $product->get_manage_stock() ) {
-					++$this->skipped;
-
-					continue;
-				}
-
-				yield $product;
-			}
-
-			++$page;
-		} while ( self::PAGE_SIZE === $fetched );
+			yield $product;
+		}
 	}
 
 	/**

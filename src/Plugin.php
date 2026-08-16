@@ -12,7 +12,10 @@ namespace PoorVida\TaxReports;
 use PoorVida\TaxReports\Admin\AdminMenu;
 use PoorVida\TaxReports\Cogs\OrderCogsRecorder;
 use PoorVida\TaxReports\Cogs\OrderCogsRepository;
+use PoorVida\TaxReports\Cost\BomApiClient;
+use PoorVida\TaxReports\Cost\CostRepository;
 use PoorVida\TaxReports\Cost\CostResolver;
+use PoorVida\TaxReports\Cost\CostSyncService;
 use PoorVida\TaxReports\Snapshots\Scheduler;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
 use PoorVida\TaxReports\Snapshots\StockSnapshotRepository;
@@ -110,8 +113,10 @@ final class Plugin {
 		$this->order_cogs = new OrderCogsRecorder( new OrderCogsRepository(), $costs );
 		$this->order_cogs->register();
 
+		$cost_sync = new CostSyncService( new BomApiClient(), new CostRepository(), $costs );
+
 		if ( is_admin() ) {
-			( new AdminMenu( $this->snapshots, $this->order_cogs ) )->register();
+			( new AdminMenu( $this->snapshots, $this->order_cogs, $cost_sync ) )->register();
 		}
 	}
 

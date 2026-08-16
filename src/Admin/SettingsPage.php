@@ -98,7 +98,7 @@ final class SettingsPage {
 
 				<h2><?php esc_html_e( 'BOM connection', 'pv-tax-reports' ); ?></h2>
 				<p class="description">
-					<?php esc_html_e( 'Not yet used. The read-only cost endpoint on BOM has to exist before the cost sync can run; these fields are here so the credentials are in place when it does.', 'pv-tax-reports' ); ?>
+					<?php esc_html_e( 'The API key is issued from BOM itself: BOM → Settings → API keys → Create key. The raw key is shown once, at creation — if it is lost, issue a new one and revoke the old one from the same screen.', 'pv-tax-reports' ); ?>
 				</p>
 
 				<table class="form-table" role="presentation">

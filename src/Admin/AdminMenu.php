@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace PoorVida\TaxReports\Admin;
 
 use PoorVida\TaxReports\Cogs\OrderCogsRecorder;
+use PoorVida\TaxReports\Cost\CostSyncService;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
 
 defined( 'ABSPATH' ) || exit;
@@ -22,6 +23,7 @@ final class AdminMenu {
 	public const CAPABILITY = 'manage_woocommerce';
 
 	public const SLUG_STATUS   = 'pvtax-status';
+	public const SLUG_SYNC     = 'pvtax-sync';
 	public const SLUG_SETTINGS = 'pvtax-settings';
 
 	/**
@@ -30,6 +32,13 @@ final class AdminMenu {
 	 * @var StatusPage
 	 */
 	private StatusPage $status;
+
+	/**
+	 * Cost sync screen.
+	 *
+	 * @var SyncPage
+	 */
+	private SyncPage $sync;
 
 	/**
 	 * Settings screen.
@@ -43,9 +52,11 @@ final class AdminMenu {
 	 *
 	 * @param SnapshotService   $snapshots  Snapshot service.
 	 * @param OrderCogsRecorder $order_cogs Order COGS recorder.
+	 * @param CostSyncService   $cost_sync  Cost sync service.
 	 */
-	public function __construct( SnapshotService $snapshots, OrderCogsRecorder $order_cogs ) {
+	public function __construct( SnapshotService $snapshots, OrderCogsRecorder $order_cogs, CostSyncService $cost_sync ) {
 		$this->status   = new StatusPage( $snapshots, $order_cogs );
+		$this->sync     = new SyncPage( $cost_sync );
 		$this->settings = new SettingsPage();
 	}
 
@@ -56,11 +67,12 @@ final class AdminMenu {
 		add_action( 'admin_menu', [ $this, 'add_pages' ] );
 
 		$this->status->register();
+		$this->sync->register();
 		$this->settings->register();
 	}
 
 	/**
-	 * Register both submenu pages.
+	 * Register the submenu pages.
 	 */
 	public function add_pages(): void {
 		add_submenu_page(
@@ -70,6 +82,15 @@ final class AdminMenu {
 			self::CAPABILITY,
 			self::SLUG_STATUS,
 			[ $this->status, 'render' ]
+		);
+
+		add_submenu_page(
+			'woocommerce',
+			__( 'Sync Costs', 'pv-tax-reports' ),
+			__( 'Sync Costs', 'pv-tax-reports' ),
+			self::CAPABILITY,
+			self::SLUG_SYNC,
+			[ $this->sync, 'render' ]
 		);
 
 		add_submenu_page(

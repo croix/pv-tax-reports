@@ -19,8 +19,8 @@ defined( 'ABSPATH' ) || exit;
  *
  * WooCommerce's own Cost of Goods Sold field is the only cost of goods in use
  * on this store, so it is the canonical read. Where that value comes from is a
- * separate question: today it is hand-maintained, and from Phase 2 it will be
- * written by the BOM sync. Nothing downstream needs to care which.
+ * separate question — hand-entered, or written by the BOM sync via write()
+ * below — and nothing downstream needs to care which.
  */
 final class CostResolver {
 
@@ -42,8 +42,9 @@ final class CostResolver {
 		/**
 		 * Override the resolved unit cost for a product.
 		 *
-		 * This is the seam the BOM cost cache hooks into once Phase 2 lands,
-		 * and the escape hatch for any product costed some other way.
+		 * The BOM sync does not need this — it writes straight to whichever
+		 * field {@see read()} consults, via write(). This is the escape hatch
+		 * for anything costed some other way.
 		 *
 		 * @param array{cost: float|null, source: string} $resolved Resolved cost.
 		 * @param WC_Product                              $product  Product.
@@ -106,6 +107,26 @@ final class CostResolver {
 			'cost'   => null,
 			'source' => self::SOURCE_NONE,
 		];
+	}
+
+	/**
+	 * Write a resolved unit cost to the product.
+	 *
+	 * This is the sync's half of the story: it takes ownership of whichever
+	 * field {@see for_product()} reads from, so a value written here is read
+	 * back unchanged by every other part of the plugin.
+	 *
+	 * @param WC_Product $product Product or variation.
+	 * @param float      $cost    New unit cost.
+	 */
+	public function write( WC_Product $product, float $cost ): void {
+		if ( $this->cogs_api_available() ) {
+			$product->set_cogs_value( $cost );
+		} else {
+			$product->update_meta_data( Options::cogs_meta_key(), (string) $cost );
+		}
+
+		$product->save();
 	}
 
 	/**
