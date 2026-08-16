@@ -10,5 +10,5 @@ declare( strict_types=1 );
 
 namespace PoorVida\TaxReports;
 
-const VERSION    = '0.5.0';
+const VERSION    = '0.5.1';
 const DB_VERSION = 2;
