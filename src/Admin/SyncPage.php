@@ -374,7 +374,22 @@ final class SyncPage {
 				<tbody>
 					<?php foreach ( $preview['unmapped_products'] as $item ) : ?>
 						<tr>
-							<td><?php echo esc_html( $item['name'] ); ?></td>
+							<td>
+								<?php echo esc_html( $item['name'] ); ?>
+								<?php if ( null !== $item['parent_id'] ) : ?>
+									<br />
+									<span class="description">
+										<?php
+										printf(
+											/* translators: %s: link to the parent product's edit screen. */
+											wp_kses_post( __( 'Variation of <a href="%1$s">%2$s</a> — WordPress\'s product search can\'t find a variation directly, so this links straight to the parent.', 'pv-tax-reports' ) ),
+											esc_url( (string) get_edit_post_link( $item['parent_id'], 'raw' ) ),
+											esc_html( $item['parent_name'] ?? (string) $item['parent_id'] )
+										);
+										?>
+									</span>
+								<?php endif; ?>
+							</td>
 							<td><code><?php echo esc_html( '' !== $item['sku'] ? $item['sku'] : __( '(no SKU)', 'pv-tax-reports' ) ); ?></code></td>
 							<td>
 								<?php if ( null !== $item['override'] && '' !== $item['override'] ) : ?>

@@ -49,7 +49,7 @@ final class CostSyncService {
 	/**
 	 * Fetch from BOM, match against products, and store the plan for review.
 	 *
-	 * @return array{ok:true, token:string, as_of:string, currency:string, matched:list<array<string, mixed>>, unmapped_options:list<array<string, mixed>>, unmapped_products:list<array{product_id:int, sku:string, name:string, override:?string}>}|array{ok:false, error:string}
+	 * @return array{ok:true, token:string, as_of:string, currency:string, matched:list<array<string, mixed>>, unmapped_options:list<array<string, mixed>>, unmapped_products:list<array{product_id:int, sku:string, name:string, override:?string, parent_id:?int, parent_name:?string}>}|array{ok:false, error:string}
 	 */
 	public function build_preview(): array {
 		$fetch = $this->client->fetch();
@@ -98,11 +98,25 @@ final class CostSyncService {
 		foreach ( $plan['unmapped_products'] as $item ) {
 			$product = $products_by_id[ $item['product_id'] ];
 
+			$parent_id   = null;
+			$parent_name = null;
+
+			// A variation is never categorized itself — only its parent is —
+			// and WordPress's own product search can't find a variation by
+			// name or SKU, so the parent is the thing worth surfacing here.
+			if ( $product instanceof WC_Product_Variation ) {
+				$parent_id   = $product->get_parent_id();
+				$parent      = wc_get_product( $parent_id );
+				$parent_name = $parent instanceof WC_Product ? $parent->get_name() : null;
+			}
+
 			$unmapped_products[] = [
-				'product_id' => $item['product_id'],
-				'sku'        => $item['sku'],
-				'name'       => $product->get_name(),
-				'override'   => $item['override'],
+				'product_id'  => $item['product_id'],
+				'sku'         => $item['sku'],
+				'name'        => $product->get_name(),
+				'override'    => $item['override'],
+				'parent_id'   => $parent_id,
+				'parent_name' => $parent_name,
 			];
 		}
 
