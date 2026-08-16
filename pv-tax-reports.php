@@ -3,7 +3,7 @@
  * Plugin Name:       Poor Vida Tax Reports
  * Plugin URI:        https://github.com/croix/pv-tax-reports
  * Description:       Inventory valuation as of a date and taxable sales reporting for WooCommerce, costed from BOM.
- * Version:           0.2.1
+ * Version:           0.3.0
  * Update URI:        https://github.com/croix/pv-tax-reports
  * Requires at least: 6.4
  * Requires PHP:      8.1
@@ -22,7 +22,7 @@ namespace PoorVida\TaxReports;
 
 defined( 'ABSPATH' ) || exit;
 
-const VERSION    = '0.2.1';
+const VERSION    = '0.3.0';
 const DB_VERSION = 2;
 
 define( 'PVTAX_FILE', __FILE__ );
