@@ -153,6 +153,22 @@ settings screen (comma-separated category slugs, e.g. `clothing`) — otherwise
 they'd just clutter the unmapped-products list every sync with nothing to map
 them to.
 
+### Migrating costs from a pre-native COGS plugin
+
+WooCommerce's own Cost of Goods Sold field only recently graduated from
+experimental to core. A store that tracked cost before then likely used a
+separate plugin — SkyVerge's or YITH's "Cost of Goods," both storing under
+the product meta key `_wc_cog_cost` — which WooCommerce's native field, and
+this plugin, know nothing about.
+
+**WooCommerce → Sync Costs → Migrate legacy costs** finds every product with
+a value in that legacy field and nothing in the native one, and offers to
+copy it across — same preview-then-apply shape as the BOM sync. It never
+overwrites a product that already has a native value, whether that value was
+entered by hand or by this migration already. Once you've confirmed the
+numbers look right, deactivate the legacy plugin — everything now reads from
+one field.
+
 ### Uncosted is not zero
 
 A product with no cost on file records `NULL`, never `0.00`, and is counted and
@@ -205,6 +221,7 @@ publishes the release. Sites pick it up through the normal update screen.
 | `pvtax_product_unit_cost` | filter | Override the resolved unit cost. The BOM sync does not need this — it writes the same field directly — so this is the escape hatch for anything costed some other way. |
 | `pvtax_cogs_capture_statuses` | filter | Order statuses that freeze costs. Default `[ 'processing', 'completed' ]`. |
 | `pvtax_excluded_product_types` | filter | Product types left out of the cost sync entirely. Default `[ 'grouped', 'bundle' ]`. |
+| `pvtax_legacy_cogs_meta_keys` | filter | Meta keys checked by the legacy-cost migration. Default `[ '_wc_cog_cost' ]`. |
 | `pvtax_snapshot_captured` | action | Fires after a daily snapshot, with the run summary. |
 | `pvtax_order_cogs_captured` | action | Fires after an order's costs are frozen. |
 

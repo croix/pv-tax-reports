@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace PoorVida\TaxReports\Admin;
 
 use PoorVida\TaxReports\Cost\CostSyncService;
+use PoorVida\TaxReports\Cost\LegacyCogsMigrationService;
 use PoorVida\TaxReports\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -25,15 +26,21 @@ defined( 'ABSPATH' ) || exit;
  */
 final class SyncPage {
 
-	private const NONCE_PREVIEW = 'pvtax_preview_sync';
-	private const NONCE_APPLY   = 'pvtax_apply_sync';
+	private const NONCE_PREVIEW        = 'pvtax_preview_sync';
+	private const NONCE_APPLY          = 'pvtax_apply_sync';
+	private const NONCE_LEGACY_PREVIEW = 'pvtax_preview_legacy_cogs';
+	private const NONCE_LEGACY_APPLY   = 'pvtax_apply_legacy_cogs';
 
 	/**
 	 * Build the screen.
 	 *
-	 * @param CostSyncService $sync Cost sync orchestration.
+	 * @param CostSyncService            $sync        Cost sync orchestration.
+	 * @param LegacyCogsMigrationService $legacy_cogs Legacy COGS migration.
 	 */
-	public function __construct( private readonly CostSyncService $sync ) {}
+	public function __construct(
+		private readonly CostSyncService $sync,
+		private readonly LegacyCogsMigrationService $legacy_cogs,
+	) {}
 
 	/**
 	 * Hook the preview, apply and mapping handlers.
@@ -43,6 +50,8 @@ final class SyncPage {
 		add_action( 'admin_post_pvtax_apply_sync', [ $this, 'handle_apply' ] );
 		add_action( 'admin_post_pvtax_save_override', [ $this, 'handle_save_override' ] );
 		add_action( 'admin_post_pvtax_clear_override', [ $this, 'handle_clear_override' ] );
+		add_action( 'admin_post_pvtax_preview_legacy_cogs', [ $this, 'handle_legacy_preview' ] );
+		add_action( 'admin_post_pvtax_apply_legacy_cogs', [ $this, 'handle_legacy_apply' ] );
 	}
 
 	/**
@@ -155,6 +164,59 @@ final class SyncPage {
 	}
 
 	/**
+	 * Find products with a legacy cost and nothing in WooCommerce's native
+	 * field, without writing anything.
+	 */
+	public function handle_legacy_preview(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You are not allowed to sync costs.', 'pv-tax-reports' ), 403 );
+		}
+
+		check_admin_referer( self::NONCE_LEGACY_PREVIEW );
+
+		$result = $this->legacy_cogs->build_preview();
+
+		$args = [ 'page' => AdminMenu::SLUG_SYNC ];
+
+		if ( ! $result['ok'] ) {
+			$args['legacy_error'] = rawurlencode( $result['error'] );
+		} else {
+			$args['legacy_previewed'] = '1';
+		}
+
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
+
+		exit;
+	}
+
+	/**
+	 * Write exactly what the legacy-cost preview showed.
+	 */
+	public function handle_legacy_apply(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You are not allowed to sync costs.', 'pv-tax-reports' ), 403 );
+		}
+
+		check_admin_referer( self::NONCE_LEGACY_APPLY );
+
+		$token  = sanitize_text_field( wp_unslash( $_POST['token'] ?? '' ) );
+		$result = $this->legacy_cogs->apply( $token );
+
+		$args = [ 'page' => AdminMenu::SLUG_SYNC ];
+
+		if ( ! $result['ok'] ) {
+			$args['legacy_error'] = rawurlencode( $result['error'] );
+		} else {
+			$args['legacy_migrated'] = $result['migrated'];
+			$args['legacy_skipped']  = $result['skipped'];
+		}
+
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
+
+		exit;
+	}
+
+	/**
 	 * Render the screen.
 	 */
 	public function render(): void {
@@ -164,8 +226,9 @@ final class SyncPage {
 
 		$this->render_notices();
 
-		$configured = '' !== Options::bom_url() && '' !== Options::api_key();
-		$preview    = $this->sync->pending_preview();
+		$configured     = '' !== Options::bom_url() && '' !== Options::api_key();
+		$preview        = $this->sync->pending_preview();
+		$legacy_preview = $this->legacy_cogs->pending_preview();
 
 		?>
 		<div class="wrap">
@@ -197,6 +260,23 @@ final class SyncPage {
 
 			<?php if ( null !== $preview ) : ?>
 				<?php $this->render_preview( $preview ); ?>
+			<?php endif; ?>
+
+			<hr style="margin:2rem 0" />
+
+			<h2><?php esc_html_e( 'Migrate legacy costs', 'pv-tax-reports' ); ?></h2>
+			<p class="description" style="max-width:52rem">
+				<?php esc_html_e( "For a store that tracked cost of goods with a plugin before WooCommerce had its own field for it — SkyVerge's or YITH's Cost of Goods, both storing under _wc_cog_cost. Finds products with a cost in that old field and nothing in WooCommerce's own field, and copies it across. Never overwrites a product that already has a native value.", 'pv-tax-reports' ); ?>
+			</p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="pvtax_preview_legacy_cogs" />
+				<?php wp_nonce_field( self::NONCE_LEGACY_PREVIEW ); ?>
+				<?php submit_button( __( 'Preview legacy costs', 'pv-tax-reports' ), 'secondary', 'submit', false ); ?>
+			</form>
+
+			<?php if ( null !== $legacy_preview ) : ?>
+				<?php $this->render_legacy_preview( $legacy_preview ); ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -410,6 +490,53 @@ final class SyncPage {
 	}
 
 	/**
+	 * Render the stored legacy-cost preview and its apply control.
+	 *
+	 * @param array<string, mixed> $preview Preview payload.
+	 */
+	private function render_legacy_preview( array $preview ): void {
+		if ( [] === $preview['rows'] ) {
+			?>
+			<p><?php esc_html_e( 'Nothing to migrate: no product has a legacy cost with an empty native field.', 'pv-tax-reports' ); ?></p>
+			<?php
+			return;
+		}
+
+		?>
+		<table class="widefat striped" style="max-width:60rem">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Product', 'pv-tax-reports' ); ?></th>
+					<th><?php esc_html_e( 'SKU', 'pv-tax-reports' ); ?></th>
+					<th><?php esc_html_e( 'Legacy field', 'pv-tax-reports' ); ?></th>
+					<th><?php esc_html_e( 'Value to copy in', 'pv-tax-reports' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $preview['rows'] as $row ) : ?>
+					<tr>
+						<td><?php echo esc_html( $row['name'] ); ?></td>
+						<td><code><?php echo esc_html( $row['sku'] ); ?></code></td>
+						<td><code><?php echo esc_html( $row['legacy_meta_key'] ); ?></code></td>
+						<td><?php echo esc_html( number_format( (float) $row['legacy_value'], 2 ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:1rem">
+			<input type="hidden" name="action" value="pvtax_apply_legacy_cogs" />
+			<input type="hidden" name="token" value="<?php echo esc_attr( $preview['token'] ); ?>" />
+			<?php wp_nonce_field( self::NONCE_LEGACY_APPLY ); ?>
+			<?php submit_button( __( 'Copy these into WooCommerce', 'pv-tax-reports' ), 'primary', 'submit', false ); ?>
+			<span class="description" style="margin-left:.5rem">
+				<?php esc_html_e( 'Expires 10 minutes after preview. Skips anything that gained a native value since then rather than overwriting it.', 'pv-tax-reports' ); ?>
+			</span>
+		</form>
+		<?php
+	}
+
+	/**
 	 * Nonce action for mapping actions on a specific product, so a nonce
 	 * issued for one product's form cannot be replayed against another.
 	 *
@@ -449,7 +576,6 @@ final class SyncPage {
 			$updated    = absint( wp_unslash( $_GET['applied'] ) );
 			$unmapped_o = absint( wp_unslash( $_GET['unmapped_options'] ?? 0 ) );
 			$unmapped_p = absint( wp_unslash( $_GET['unmapped_products'] ?? 0 ) );
-			// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 			printf(
 				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
@@ -460,6 +586,31 @@ final class SyncPage {
 						$updated,
 						$unmapped_o,
 						$unmapped_p
+					)
+				)
+			);
+		}
+
+		if ( isset( $_GET['legacy_error'] ) ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html( sanitize_text_field( wp_unslash( $_GET['legacy_error'] ) ) )
+			);
+		}
+
+		if ( isset( $_GET['legacy_migrated'] ) ) {
+			$migrated = absint( wp_unslash( $_GET['legacy_migrated'] ) );
+			$skipped  = absint( wp_unslash( $_GET['legacy_skipped'] ?? 0 ) );
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+			printf(
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+				esc_html(
+					sprintf(
+						/* translators: 1: products migrated, 2: products skipped. */
+						__( 'Legacy costs migrated: %1$d products copied in, %2$d skipped (already had a native value).', 'pv-tax-reports' ),
+						$migrated,
+						$skipped
 					)
 				)
 			);

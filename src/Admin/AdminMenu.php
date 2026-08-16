@@ -11,6 +11,7 @@ namespace PoorVida\TaxReports\Admin;
 
 use PoorVida\TaxReports\Cogs\OrderCogsRecorder;
 use PoorVida\TaxReports\Cost\CostSyncService;
+use PoorVida\TaxReports\Cost\LegacyCogsMigrationService;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
 
 defined( 'ABSPATH' ) || exit;
@@ -50,13 +51,19 @@ final class AdminMenu {
 	/**
 	 * Build the screens.
 	 *
-	 * @param SnapshotService   $snapshots  Snapshot service.
-	 * @param OrderCogsRecorder $order_cogs Order COGS recorder.
-	 * @param CostSyncService   $cost_sync  Cost sync service.
+	 * @param SnapshotService            $snapshots   Snapshot service.
+	 * @param OrderCogsRecorder          $order_cogs  Order COGS recorder.
+	 * @param CostSyncService            $cost_sync   Cost sync service.
+	 * @param LegacyCogsMigrationService $legacy_cogs Legacy COGS migration.
 	 */
-	public function __construct( SnapshotService $snapshots, OrderCogsRecorder $order_cogs, CostSyncService $cost_sync ) {
+	public function __construct(
+		SnapshotService $snapshots,
+		OrderCogsRecorder $order_cogs,
+		CostSyncService $cost_sync,
+		LegacyCogsMigrationService $legacy_cogs
+	) {
 		$this->status   = new StatusPage( $snapshots, $order_cogs );
-		$this->sync     = new SyncPage( $cost_sync );
+		$this->sync     = new SyncPage( $cost_sync, $legacy_cogs );
 		$this->settings = new SettingsPage();
 	}
 
