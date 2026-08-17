@@ -90,7 +90,7 @@ final class StatusPage {
 
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'Tax Reports', 'pv-tax-reports' ); ?></h1>
+			<h1><?php esc_html_e( 'Tax Reports Status', 'pv-tax-reports' ); ?></h1>
 
 			<?php $this->render_snapshot_notice(); ?>
 
@@ -198,7 +198,16 @@ final class StatusPage {
 			</table>
 
 			<h2><?php esc_html_e( 'Reports', 'pv-tax-reports' ); ?></h2>
-			<p><?php esc_html_e( 'Inventory valuation and taxable sales are not built yet. Stock history and sale-time costs are being recorded now so those reports have something to read when they arrive.', 'pv-tax-reports' ); ?></p>
+			<ul style="list-style:disc;margin-left:1.5rem">
+				<li>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . AdminMenu::SLUG_REPORT_INVENTORY ) ); ?>"><?php esc_html_e( 'Inventory Valuation', 'pv-tax-reports' ); ?></a>
+					— <?php esc_html_e( 'what was in stock on a date, and what it was worth.', 'pv-tax-reports' ); ?>
+				</li>
+				<li>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . AdminMenu::SLUG_REPORT_SALES ) ); ?>"><?php esc_html_e( 'Taxable Sales', 'pv-tax-reports' ); ?></a>
+					— <?php esc_html_e( 'gross sales, taxable sales, and tax collected for a date range.', 'pv-tax-reports' ); ?>
+				</li>
+			</ul>
 		</div>
 		<?php
 	}

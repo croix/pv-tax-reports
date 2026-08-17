@@ -110,8 +110,8 @@ final class AdminMenu {
 	public function add_pages(): void {
 		add_submenu_page(
 			'woocommerce',
-			__( 'Tax Reports', 'pv-tax-reports' ),
-			__( 'Tax Reports', 'pv-tax-reports' ),
+			__( 'Tax Reports Status', 'pv-tax-reports' ),
+			__( 'Tax Reports Status', 'pv-tax-reports' ),
 			self::CAPABILITY,
 			self::SLUG_STATUS,
 			[ $this->status, 'render' ]

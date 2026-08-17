@@ -41,8 +41,8 @@ Download the zip from [Releases](https://github.com/croix/pv-tax-reports/release
 and install it through **Plugins → Add New → Upload Plugin**. Subsequent updates
 are offered in place through the normal WordPress update screen.
 
-Then check **WooCommerce → Tax Reports**. It should say a nightly snapshot is
-scheduled. If it does not, nothing is being recorded.
+Then check **WooCommerce → Tax Reports Status**. It should say a nightly
+snapshot is scheduled. If it does not, nothing is being recorded.
 
 ### Configuration
 
@@ -210,6 +210,41 @@ A line taxed under two overlapping rates at once (state plus local, say)
 counts its full taxable amount under both in the by-rate breakdown, since a
 return itself asks for sales subject to each authority separately — that's
 not double-counting the overall total, which still counts the line once.
+
+## Year-end runbook
+
+The checks below turn "a plugin with two reports" into a repeatable process.
+Run them once, in order, before handing anything to whoever files the return.
+
+1. **Check history has no gaps.** WooCommerce → Tax Reports Status → *Days
+   recorded* should roughly match the number of days since *Recording since*.
+   A shortfall means the nightly snapshot missed one or more days somewhere
+   in the year — those days genuinely cannot be reconstructed, so the
+   valuation report will say so plainly for any date that falls on one.
+2. **Sync costs one last time.** WooCommerce → Sync Costs → Preview sync, then
+   apply, so December's numbers reflect BOM's latest ingredient and packaging
+   prices rather than whatever was current the last time someone happened to
+   run it.
+3. **Clear the unmapped list, or understand every line still on it.** Same
+   screen: every entry under *Products with no BOM match* is a product this
+   year's numbers do not know the cost of. Map what should be mapped; for
+   anything left (a genuine gap, an orphaned variation, a product intentionally
+   excluded by category), that's a conscious decision, not an oversight.
+4. **Run Inventory Valuation for the fiscal year-end date** (e.g. 12/31).
+   Export the CSV and keep it — it is date-stamped in the filename, and this is
+   the one number that cannot be regenerated later if a cost changes in the
+   meantime, since it always reflects that day's frozen snapshot cost either
+   way.
+5. **Run Taxable Sales for the full year** (January 1 through the year-end
+   date). Export the CSV.
+6. **Hand both CSVs to whoever files the return**, along with the reminder at
+   the bottom of this README: the costing method here is a documented,
+   consistent simplification, not a claim of exact per-unit cost, and none of
+   this is accounting advice.
+
+Steps 4 and 5 are safe to re-run at any point after the year-end date passes —
+nothing about them depends on when they're run, only on the data already
+recorded by then.
 
 ## Data
 
