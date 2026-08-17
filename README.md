@@ -244,7 +244,7 @@ Bump the `Version:` header in `pv-tax-reports.php` and the `VERSION` constant,
 then push a matching tag:
 
 ```bash
-git tag v0.6.0 && git push origin v0.6.0
+git tag v0.7.0 && git push origin v0.7.0
 ```
 
 CI verifies the tag matches the header, builds a correctly-foldered zip, and
