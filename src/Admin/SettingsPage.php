@@ -11,6 +11,7 @@ namespace PoorVida\TaxReports\Admin;
 
 use PoorVida\TaxReports\Cost\CostResolver;
 use PoorVida\TaxReports\Support\Options;
+use PoorVida\TaxReports\Update\GitHubUpdater;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,13 +20,46 @@ defined( 'ABSPATH' ) || exit;
  */
 final class SettingsPage {
 
-	private const NONCE = 'pvtax_save_settings';
+	private const NONCE               = 'pvtax_save_settings';
+	private const NONCE_CHECK_UPDATES = 'pvtax_check_updates';
 
 	/**
-	 * Hook the save handler.
+	 * Hook the save and update-check handlers.
 	 */
 	public function register(): void {
 		add_action( 'admin_post_pvtax_save_settings', [ $this, 'handle_save' ] );
+		add_action( 'admin_post_pvtax_check_updates', [ $this, 'handle_check_for_updates' ] );
+	}
+
+	/**
+	 * Force a fresh update check, bypassing both this plugin's own cache of
+	 * the latest GitHub release and WordPress's own update-check cache.
+	 *
+	 * A release just published on GitHub can otherwise sit unseen for hours:
+	 * this plugin caches the release lookup for 6 hours, and WordPress caches
+	 * its own overall plugin-update check on top of that.
+	 */
+	public function handle_check_for_updates(): void {
+		if ( ! current_user_can( AdminMenu::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You are not allowed to check for updates.', 'pv-tax-reports' ), 403 );
+		}
+
+		check_admin_referer( self::NONCE_CHECK_UPDATES );
+
+		delete_site_transient( GitHubUpdater::TRANSIENT );
+		wp_update_plugins();
+
+		wp_safe_redirect(
+			add_query_arg(
+				[
+					'page'            => AdminMenu::SLUG_SETTINGS,
+					'checked_updates' => '1',
+				],
+				admin_url( 'admin.php' )
+			)
+		);
+
+		exit;
 	}
 
 	/**
@@ -91,6 +125,20 @@ final class SettingsPage {
 
 			<?php if ( isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only notice flag. ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'pv-tax-reports' ); ?></p></div>
+			<?php endif; ?>
+
+			<?php if ( isset( $_GET['checked_updates'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only notice flag. ?>
+				<div class="notice notice-success is-dismissible">
+					<p>
+						<?php
+						printf(
+							/* translators: %s: link to the Plugins page. */
+							wp_kses_post( __( 'Update check refreshed. Visit <a href="%s">Plugins</a> to see if a new version is now offered.', 'pv-tax-reports' ) ),
+							esc_url( admin_url( 'plugins.php' ) )
+						);
+						?>
+					</p>
+				</div>
 			<?php endif; ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -186,6 +234,15 @@ final class SettingsPage {
 				</table>
 
 				<?php submit_button(); ?>
+			</form>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:1rem">
+				<input type="hidden" name="action" value="pvtax_check_updates" />
+				<?php wp_nonce_field( self::NONCE_CHECK_UPDATES ); ?>
+				<?php submit_button( __( 'Check for updates now', 'pv-tax-reports' ), 'secondary', 'submit', false ); ?>
+				<span class="description" style="margin-left:.5rem">
+					<?php esc_html_e( 'A release published on GitHub can otherwise sit uncached for up to 6 hours before it shows up here.', 'pv-tax-reports' ); ?>
+				</span>
 			</form>
 		</div>
 		<?php

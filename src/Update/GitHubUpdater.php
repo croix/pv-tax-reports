@@ -21,8 +21,9 @@ defined( 'ABSPATH' ) || exit;
  */
 final class GitHubUpdater {
 
-	private const TRANSIENT = 'pvtax_latest_release';
-	private const TTL       = 6 * HOUR_IN_SECONDS;
+	public const TRANSIENT = 'pvtax_latest_release';
+
+	private const TTL = 6 * HOUR_IN_SECONDS;
 
 	/**
 	 * Hook the update filters.

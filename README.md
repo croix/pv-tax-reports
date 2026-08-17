@@ -212,7 +212,11 @@ git tag v0.6.0 && git push origin v0.6.0
 ```
 
 CI verifies the tag matches the header, builds a correctly-foldered zip, and
-publishes the release. Sites pick it up through the normal update screen.
+publishes the release. Sites pick it up through the normal update screen —
+though a release just published on GitHub can sit uncached for a while: this
+plugin caches the release lookup for 6 hours, and WordPress caches its own
+overall plugin-update check on top of that. **Tax Reports Settings → Updates
+→ Check for updates now** clears both immediately, rather than waiting.
 
 ## Extension points
 
