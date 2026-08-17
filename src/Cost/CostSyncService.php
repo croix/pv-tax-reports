@@ -49,7 +49,7 @@ final class CostSyncService {
 	/**
 	 * Fetch from BOM, match against products, and store the plan for review.
 	 *
-	 * @return array{ok:true, token:string, as_of:string, currency:string, matched:list<array<string, mixed>>, unmapped_options:list<array<string, mixed>>, unmapped_products:list<array{product_id:int, sku:string, name:string, override:?string, parent_id:?int, parent_name:?string}>}|array{ok:false, error:string}
+	 * @return array{ok:true, token:string, as_of:string, currency:string, matched:list<array<string, mixed>>, unmapped_options:list<array<string, mixed>>, unmapped_products:list<array{product_id:int, sku:string, name:string, override:?string, parent_id:?int, parent_name:?string, parent_orphaned:bool}>}|array{ok:false, error:string}
 	 */
 	public function build_preview(): array {
 		$fetch = $this->client->fetch();
@@ -98,25 +98,41 @@ final class CostSyncService {
 		foreach ( $plan['unmapped_products'] as $item ) {
 			$product = $products_by_id[ $item['product_id'] ];
 
-			$parent_id   = null;
-			$parent_name = null;
+			$parent_id       = null;
+			$parent_name     = null;
+			$parent_orphaned = false;
 
 			// A variation is never categorized itself — only its parent is —
 			// and WordPress's own product search can't find a variation by
 			// name or SKU, so the parent is the thing worth surfacing here.
 			if ( $product instanceof WC_Product_Variation ) {
-				$parent_id   = $product->get_parent_id();
-				$parent      = wc_get_product( $parent_id );
-				$parent_name = $parent instanceof WC_Product ? $parent->get_name() : null;
+				$raw_parent_id = $product->get_parent_id();
+				$parent        = $raw_parent_id > 0 ? wc_get_product( $raw_parent_id ) : null;
+
+				if ( $parent instanceof WC_Product ) {
+					$parent_id   = $raw_parent_id;
+					$parent_name = $parent->get_name();
+				} else {
+					/*
+					 * post_parent is 0, or points at a product that no longer
+					 * exists — this variation isn't linked to anything real.
+					 * Typically a leftover from a broken import or sync
+					 * (e.g. a print-on-demand catalog sync), not something
+					 * this plugin can map or exclude by category: with no
+					 * parent, there's nothing to check a category against.
+					 */
+					$parent_orphaned = true;
+				}
 			}
 
 			$unmapped_products[] = [
-				'product_id'  => $item['product_id'],
-				'sku'         => $item['sku'],
-				'name'        => $product->get_name(),
-				'override'    => $item['override'],
-				'parent_id'   => $parent_id,
-				'parent_name' => $parent_name,
+				'product_id'      => $item['product_id'],
+				'sku'             => $item['sku'],
+				'name'            => $product->get_name(),
+				'override'        => $item['override'],
+				'parent_id'       => $parent_id,
+				'parent_name'     => $parent_name,
+				'parent_orphaned' => $parent_orphaned,
 			];
 		}
 

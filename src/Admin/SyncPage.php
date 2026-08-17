@@ -376,15 +376,20 @@ final class SyncPage {
 						<tr>
 							<td>
 								<?php echo esc_html( $item['name'] ); ?>
-								<?php if ( null !== $item['parent_id'] ) : ?>
+								<?php if ( $item['parent_orphaned'] ) : ?>
+									<br />
+									<span class="description">
+										<?php esc_html_e( 'Orphaned variation — its parent product no longer exists or was never linked. Usually a leftover from a broken import or catalog sync (e.g. print-on-demand); there is nothing here to map or exclude by category until it has a real parent again.', 'pv-tax-reports' ); ?>
+									</span>
+								<?php elseif ( null !== $item['parent_id'] ) : ?>
 									<br />
 									<span class="description">
 										<?php
 										printf(
-											/* translators: %s: link to the parent product's edit screen. */
+											/* translators: 1: link to the parent product's edit screen, 2: parent product name. */
 											wp_kses_post( __( 'Variation of <a href="%1$s">%2$s</a> — WordPress\'s product search can\'t find a variation directly, so this links straight to the parent.', 'pv-tax-reports' ) ),
 											esc_url( (string) get_edit_post_link( $item['parent_id'], 'raw' ) ),
-											esc_html( $item['parent_name'] ?? (string) $item['parent_id'] )
+											esc_html( (string) $item['parent_name'] )
 										);
 										?>
 									</span>
