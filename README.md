@@ -24,8 +24,8 @@ endpoint, are kept as internal working documents rather than published here.
 | 2 | Cost sync, product↔BOM mapping, dry-run preview, unmapped warnings | **done** |
 | 3 | Nightly stock snapshots + manual "snapshot now" | **done** |
 | 4 | Order COGS capture at sale | **done** |
-| 5 | Report 1 — inventory valuation as of a date | not started |
-| 6 | Report 2 — taxable sales | not started |
+| 5 | Report 1 — inventory valuation as of a date | **done** |
+| 6 | Report 2 — taxable sales | **done** |
 | 7 | Docs | not started |
 
 Phases 3 and 4 were built ahead of 1 and 2 on purpose: **they only produce data
@@ -174,6 +174,42 @@ one field.
 A product with no cost on file records `NULL`, never `0.00`, and is counted and
 surfaced on the status screen. A silently missing line is exactly the error a
 tax report must not make.
+
+## Reports
+
+### Inventory valuation as of a date
+
+**WooCommerce → Inventory Valuation.** Pick a date, get quantity on hand, unit
+cost, and extended value per product, plus a total and a CSV export.
+
+Reads that day's frozen snapshot row rather than re-resolving today's live
+cost — `unit_cost` was copied in at snapshot time specifically so a later
+cost change can't restate a past valuation. "Current cost from BOM" in the
+report means current as of the day being valued, not current as of the day
+the report happens to be run.
+
+A date before recording started, or a day the snapshotter didn't run, says so
+plainly rather than showing a total that looks real but isn't. A product with
+quantity but no cost on file shows as an explicit uncosted line and is left
+out of the total, never valued at zero.
+
+### Taxable sales for a date range
+
+**WooCommerce → Taxable Sales.** Gross sales, taxable sales, and tax
+collected for a range, broken out by rate/jurisdiction, with a CSV export.
+
+Built entirely on WooCommerce's own order CRUD (`wc_get_orders()`,
+`get_items()`, `get_taxes()`) rather than raw SQL — the site may be on HPOS,
+where orders live in `wc_orders` instead of `posts`, and hand-rolled SQL would
+silently return nothing. Only orders in `processing` or `completed` count;
+`cancelled` and `failed` are excluded. Refunds net out, in the period the
+refund itself happened rather than restating the original sale's period —
+matching how a return recognizes a reversal.
+
+A line taxed under two overlapping rates at once (state plus local, say)
+counts its full taxable amount under both in the by-rate breakdown, since a
+return itself asks for sales subject to each authority separately — that's
+not double-counting the overall total, which still counts the line once.
 
 ## Data
 

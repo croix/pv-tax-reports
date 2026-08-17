@@ -17,6 +17,8 @@ use PoorVida\TaxReports\Cost\CostRepository;
 use PoorVida\TaxReports\Cost\CostResolver;
 use PoorVida\TaxReports\Cost\CostSyncService;
 use PoorVida\TaxReports\Cost\LegacyCogsMigrationService;
+use PoorVida\TaxReports\Reports\InventoryValuationReport;
+use PoorVida\TaxReports\Reports\TaxableSalesReport;
 use PoorVida\TaxReports\Snapshots\Scheduler;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
 use PoorVida\TaxReports\Snapshots\StockSnapshotRepository;
@@ -119,8 +121,11 @@ final class Plugin {
 		$cost_sync   = new CostSyncService( new BomApiClient(), new CostRepository(), $costs );
 		$legacy_cogs = new LegacyCogsMigrationService( $costs );
 
+		$inventory_report = new InventoryValuationReport( $this->snapshots->repository() );
+		$sales_report     = new TaxableSalesReport();
+
 		if ( is_admin() ) {
-			( new AdminMenu( $this->snapshots, $this->order_cogs, $cost_sync, $legacy_cogs ) )->register();
+			( new AdminMenu( $this->snapshots, $this->order_cogs, $cost_sync, $legacy_cogs, $inventory_report, $sales_report ) )->register();
 		}
 	}
 
