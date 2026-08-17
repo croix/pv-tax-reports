@@ -4,6 +4,15 @@ All notable changes to this plugin are documented here. Versions correspond
 to [GitHub releases](https://github.com/croix/pv-tax-reports/releases), whose
 own notes carry the full commit-level detail — this is the short version.
 
+## v0.6.1 — 2026-08-16
+
+- The status screen still said the two reports weren't built yet, after
+  v0.6.0 shipped both — now links to each instead. Renamed the screen "Tax
+  Reports Status" to disambiguate it from the report pages themselves.
+- Added this changelog and a year-end runbook to the README: the checklist
+  that turns the reports into a repeatable process rather than two
+  screens to remember to visit once a year.
+
 ## v0.6.0 — 2026-08-16
 
 - Built Report 1, **Inventory Valuation**: pick a date, get quantity, unit
