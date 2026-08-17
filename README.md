@@ -211,6 +211,28 @@ counts its full taxable amount under both in the by-rate breakdown, since a
 return itself asks for sales subject to each authority separately — that's
 not double-counting the overall total, which still counts the line once.
 
+### Profitability
+
+**WooCommerce → Profitability.** Three views on one screen, driven by a
+shared date range: revenue, cost of goods, and margin **by product**, **by
+order**, and a **trailing-12-month trend** (always the last 12 calendar
+months, independent of the date range above it). CSV export on each.
+
+This is gross margin on goods sold, not overall order economics — shipping
+and fee revenue is deliberately left out everywhere on this screen, since
+there is no cost basis for either here.
+
+Cost comes from `{prefix}pvtax_order_cogs` — the same sale-time-frozen cost
+the drift rule already protects — joined against each order's own line
+items. A line with no captured cost (typically a sale from before this
+plugin was installed) is never treated as costing zero: its cost is simply
+absent from the sum, its quantity is called out as **uncosted**, and the
+profit shown is a ceiling — revenue minus *known* cost — not a claim of
+exact profit. Refunds net out per line via WooCommerce's own
+`get_qty_refunded_for_item()` / `get_total_refunded_for_item()`, on the
+assumption a refunded unit is normally restocked; a fully refunded line
+drops out entirely.
+
 ## Year-end runbook
 
 The checks below turn "a plugin with two reports" into a repeatable process.
@@ -279,7 +301,7 @@ Bump the `Version:` header in `pv-tax-reports.php` and the `VERSION` constant,
 then push a matching tag:
 
 ```bash
-git tag v0.7.0 && git push origin v0.7.0
+git tag v0.8.0 && git push origin v0.8.0
 ```
 
 CI verifies the tag matches the header, builds a correctly-foldered zip, and

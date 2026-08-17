@@ -4,6 +4,25 @@ All notable changes to this plugin are documented here. Versions correspond
 to [GitHub releases](https://github.com/croix/pv-tax-reports/releases), whose
 own notes carry the full commit-level detail — this is the short version.
 
+## v0.7.0 — 2026-08-16
+
+- Added a **Profitability** report: revenue, cost of goods, and margin by
+  product, by order, and a trailing-12-month trend, on one screen with CSV
+  export for each. Prompted by checking whether WooCommerce's own native
+  Cost of Goods Sold feature offers any reporting of its own — it doesn't —
+  and by comparing against what WooCommerce.com's paid "Cost & Reports"
+  extension offers, adopting the product/order profitability views and
+  skipping the rest (customer analytics and bulk price/markup editing are a
+  different problem than tax reporting; VAT support doesn't apply to a US
+  sales-tax business).
+- Cost comes from the same sale-time-frozen `pvtax_order_cogs` data the
+  drift rule already protects. A line with no captured cost is never
+  treated as costing zero — profit shown is a ceiling (revenue minus known
+  cost), with the uncosted quantity called out explicitly.
+- Refunds net out per line via WooCommerce's own
+  `get_qty_refunded_for_item()` / `get_total_refunded_for_item()`, on the
+  stated assumption that a refunded unit is normally restocked.
+
 ## v0.6.1 — 2026-08-16
 
 - The status screen still said the two reports weren't built yet, after

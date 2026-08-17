@@ -13,6 +13,9 @@ use PoorVida\TaxReports\Cogs\OrderCogsRecorder;
 use PoorVida\TaxReports\Cost\CostSyncService;
 use PoorVida\TaxReports\Cost\LegacyCogsMigrationService;
 use PoorVida\TaxReports\Reports\InventoryValuationReport;
+use PoorVida\TaxReports\Reports\OrderProfitabilityReport;
+use PoorVida\TaxReports\Reports\ProductProfitabilityReport;
+use PoorVida\TaxReports\Reports\ProfitabilityTrendReport;
 use PoorVida\TaxReports\Reports\TaxableSalesReport;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
 
@@ -25,11 +28,12 @@ final class AdminMenu {
 
 	public const CAPABILITY = 'manage_woocommerce';
 
-	public const SLUG_STATUS           = 'pvtax-status';
-	public const SLUG_SYNC             = 'pvtax-sync';
-	public const SLUG_REPORT_INVENTORY = 'pvtax-report-inventory';
-	public const SLUG_REPORT_SALES     = 'pvtax-report-sales';
-	public const SLUG_SETTINGS         = 'pvtax-settings';
+	public const SLUG_STATUS               = 'pvtax-status';
+	public const SLUG_SYNC                 = 'pvtax-sync';
+	public const SLUG_REPORT_INVENTORY     = 'pvtax-report-inventory';
+	public const SLUG_REPORT_SALES         = 'pvtax-report-sales';
+	public const SLUG_REPORT_PROFITABILITY = 'pvtax-report-profitability';
+	public const SLUG_SETTINGS             = 'pvtax-settings';
 
 	/**
 	 * Status and tools screen.
@@ -60,6 +64,13 @@ final class AdminMenu {
 	private TaxableSalesPage $sales_report;
 
 	/**
+	 * Profitability report screen.
+	 *
+	 * @var ProfitabilityPage
+	 */
+	private ProfitabilityPage $profitability_report;
+
+	/**
 	 * Settings screen.
 	 *
 	 * @var SettingsPage
@@ -69,12 +80,15 @@ final class AdminMenu {
 	/**
 	 * Build the screens.
 	 *
-	 * @param SnapshotService            $snapshots   Snapshot service.
-	 * @param OrderCogsRecorder          $order_cogs  Order COGS recorder.
-	 * @param CostSyncService            $cost_sync   Cost sync service.
-	 * @param LegacyCogsMigrationService $legacy_cogs Legacy COGS migration.
-	 * @param InventoryValuationReport   $inventory   Inventory valuation report.
-	 * @param TaxableSalesReport         $sales       Taxable sales report.
+	 * @param SnapshotService            $snapshots     Snapshot service.
+	 * @param OrderCogsRecorder          $order_cogs    Order COGS recorder.
+	 * @param CostSyncService            $cost_sync     Cost sync service.
+	 * @param LegacyCogsMigrationService $legacy_cogs   Legacy COGS migration.
+	 * @param InventoryValuationReport   $inventory     Inventory valuation report.
+	 * @param TaxableSalesReport         $sales         Taxable sales report.
+	 * @param ProductProfitabilityReport $product_profit Product profitability report.
+	 * @param OrderProfitabilityReport   $order_profit  Order profitability report.
+	 * @param ProfitabilityTrendReport   $trend         Monthly profitability trend.
 	 */
 	public function __construct(
 		SnapshotService $snapshots,
@@ -82,13 +96,17 @@ final class AdminMenu {
 		CostSyncService $cost_sync,
 		LegacyCogsMigrationService $legacy_cogs,
 		InventoryValuationReport $inventory,
-		TaxableSalesReport $sales
+		TaxableSalesReport $sales,
+		ProductProfitabilityReport $product_profit,
+		OrderProfitabilityReport $order_profit,
+		ProfitabilityTrendReport $trend
 	) {
-		$this->status           = new StatusPage( $snapshots, $order_cogs );
-		$this->sync             = new SyncPage( $cost_sync, $legacy_cogs );
-		$this->inventory_report = new InventoryValuationPage( $inventory );
-		$this->sales_report     = new TaxableSalesPage( $sales );
-		$this->settings         = new SettingsPage();
+		$this->status               = new StatusPage( $snapshots, $order_cogs );
+		$this->sync                 = new SyncPage( $cost_sync, $legacy_cogs );
+		$this->inventory_report     = new InventoryValuationPage( $inventory );
+		$this->sales_report         = new TaxableSalesPage( $sales );
+		$this->profitability_report = new ProfitabilityPage( $product_profit, $order_profit, $trend );
+		$this->settings             = new SettingsPage();
 	}
 
 	/**
@@ -101,6 +119,7 @@ final class AdminMenu {
 		$this->sync->register();
 		$this->inventory_report->register();
 		$this->sales_report->register();
+		$this->profitability_report->register();
 		$this->settings->register();
 	}
 
@@ -142,6 +161,15 @@ final class AdminMenu {
 			self::CAPABILITY,
 			self::SLUG_REPORT_SALES,
 			[ $this->sales_report, 'render' ]
+		);
+
+		add_submenu_page(
+			'woocommerce',
+			__( 'Profitability', 'pv-tax-reports' ),
+			__( 'Profitability', 'pv-tax-reports' ),
+			self::CAPABILITY,
+			self::SLUG_REPORT_PROFITABILITY,
+			[ $this->profitability_report, 'render' ]
 		);
 
 		add_submenu_page(

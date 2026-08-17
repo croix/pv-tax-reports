@@ -18,6 +18,10 @@ use PoorVida\TaxReports\Cost\CostResolver;
 use PoorVida\TaxReports\Cost\CostSyncService;
 use PoorVida\TaxReports\Cost\LegacyCogsMigrationService;
 use PoorVida\TaxReports\Reports\InventoryValuationReport;
+use PoorVida\TaxReports\Reports\OrderProfitabilityReport;
+use PoorVida\TaxReports\Reports\ProductProfitabilityReport;
+use PoorVida\TaxReports\Reports\ProfitabilityLines;
+use PoorVida\TaxReports\Reports\ProfitabilityTrendReport;
 use PoorVida\TaxReports\Reports\TaxableSalesReport;
 use PoorVida\TaxReports\Snapshots\Scheduler;
 use PoorVida\TaxReports\Snapshots\SnapshotService;
@@ -115,7 +119,9 @@ final class Plugin {
 
 		( new Scheduler( $this->snapshots ) )->register();
 
-		$this->order_cogs = new OrderCogsRecorder( new OrderCogsRepository(), $costs );
+		$order_cogs_repository = new OrderCogsRepository();
+
+		$this->order_cogs = new OrderCogsRecorder( $order_cogs_repository, $costs );
 		$this->order_cogs->register();
 
 		$cost_sync   = new CostSyncService( new BomApiClient(), new CostRepository(), $costs );
@@ -124,8 +130,13 @@ final class Plugin {
 		$inventory_report = new InventoryValuationReport( $this->snapshots->repository() );
 		$sales_report     = new TaxableSalesReport();
 
+		$profitability_lines = new ProfitabilityLines( $order_cogs_repository );
+		$product_profit      = new ProductProfitabilityReport( $profitability_lines );
+		$order_profit        = new OrderProfitabilityReport( $profitability_lines );
+		$trend               = new ProfitabilityTrendReport( $profitability_lines );
+
 		if ( is_admin() ) {
-			( new AdminMenu( $this->snapshots, $this->order_cogs, $cost_sync, $legacy_cogs, $inventory_report, $sales_report ) )->register();
+			( new AdminMenu( $this->snapshots, $this->order_cogs, $cost_sync, $legacy_cogs, $inventory_report, $sales_report, $product_profit, $order_profit, $trend ) )->register();
 		}
 	}
 
