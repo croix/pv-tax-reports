@@ -36,4 +36,40 @@ final class DatesTest extends TestCase {
 		$this->assertNull( Dates::normalize_date( 'yesterday' ) );
 		$this->assertNull( Dates::normalize_date( '' ) );
 	}
+
+	public function test_quarters_count_back_from_the_current_one(): void {
+		$quarters = Dates::quarters( '2026-10-05', 3 );
+
+		$this->assertSame(
+			[
+				[
+					'label'   => 'Q4 2026',
+					'start'   => '2026-10-01',
+					'end'     => '2026-10-05',
+					'current' => true,
+				],
+				[
+					'label'   => 'Q3 2026',
+					'start'   => '2026-07-01',
+					'end'     => '2026-09-30',
+					'current' => false,
+				],
+				[
+					'label'   => 'Q2 2026',
+					'start'   => '2026-04-01',
+					'end'     => '2026-06-30',
+					'current' => false,
+				],
+			],
+			$quarters
+		);
+	}
+
+	public function test_quarters_cross_a_year_boundary(): void {
+		$quarters = Dates::quarters( '2026-02-14', 2 );
+
+		$this->assertSame( '2025-10-01', $quarters[1]['start'] );
+		$this->assertSame( '2025-12-31', $quarters[1]['end'] );
+		$this->assertSame( 'Q4 2025', $quarters[1]['label'] );
+	}
 }

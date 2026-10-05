@@ -195,21 +195,60 @@ out of the total, never valued at zero.
 
 ### Taxable sales for a date range
 
-**WooCommerce → Taxable Sales.** Gross sales, taxable sales, and tax
-collected for a range, broken out by rate/jurisdiction, with a CSV export.
+**WooCommerce → Taxable Sales.** The figures a Texas sales and use tax return
+asks for — Total Texas sales, taxable sales, and tax collected — for a date
+range, defaulting to the last full calendar quarter, with one-click quarter
+picks. Two CSV exports: a summary, and every order line with its order ID,
+date, ship-to, category, and tax by jurisdiction, so any total can be audited
+back to orders.
 
 Built entirely on WooCommerce's own order CRUD (`wc_get_orders()`,
 `get_items()`, `get_taxes()`) rather than raw SQL — the site may be on HPOS,
 where orders live in `wc_orders` instead of `posts`, and hand-rolled SQL would
-silently return nothing. Only orders in `processing` or `completed` count;
-`cancelled` and `failed` are excluded. Refunds net out, in the period the
-refund itself happened rather than restating the original sale's period —
-matching how a return recognizes a reversal.
+silently return nothing.
 
-A line taxed under two overlapping rates at once (state plus local, say)
-counts its full taxable amount under both in the by-rate breakdown, since a
-return itself asks for sales subject to each authority separately — that's
-not double-counting the overall total, which still counts the line once.
+**It covers website (WooCommerce) sales only.** In-person sales (Square) and
+wholesale invoices never pass through WooCommerce, so they are not here — the
+report is one input to the return, not the whole return.
+
+Every line lands in exactly one category:
+
+| Category | What it is | In Total Texas sales |
+|---|---|---|
+| Taxable | Product's WooCommerce tax status is *Taxable* (and not Zero rate), delivered in Texas | yes |
+| Exempt, tax collected in error | Exempt product, but tax was charged anyway — that tax still has to be remitted, so these sales are reported as taxable on the return | yes |
+| Exempt, no tax collected | Exempt product, no tax charged | yes |
+| Out-of-state | Delivered outside Texas | no |
+| Marketplace | `created_via` is Amazon (or another marketplace) — the marketplace provider reports it | no |
+
+The rules, each of which an earlier version got wrong:
+
+- **Taxable is a fact about the product, not about whether tax was charged.**
+  Most of the catalog is exempt food (Comptroller Pub 96-280: sauces, salsas,
+  spices); sweetened drinks and syrups are taxable. The report reads each
+  product's WooCommerce **tax status** — so the product settings have to say
+  the truth (exempt food set to tax status *None*) for the split to be right.
+  The same setting is what stops checkout charging tax on exempt food. A
+  product in the *Zero rate* tax class counts as exempt too.
+- **Shipping is part of the sales price of what it delivers.** Shipping and
+  fees are taxable in proportion to the taxable share of the order's item
+  value — all of it on an all-taxable order, none on an all-exempt one.
+- **Jurisdiction labels come from the order's own tax lines**, as recorded at
+  checkout, not from looking the rate ID up in today's tax table. Amazon's
+  imported tax line carries rate ID 1; looking that up turned Amazon's tax
+  into a phantom "City Tax" row.
+- **Refunds only net against orders the report counts.** `processing`,
+  `completed`, and `refunded` orders count (so a fully refunded order and its
+  refund net to zero); a refund on a cancelled or failed order is ignored.
+  Refunds reduce the taxable base as well as the tax, in the period the
+  refund happened rather than restating the original sale's period.
+- **A state stored as a name** ("Texas", from REST-created orders) is
+  normalized to its code.
+
+The jurisdiction table shows, for direct sales, the sales each jurisdiction's
+tax was charged on and the effective rate — state, city, and special district
+should each come out at their own rate (6.25 / 1 / 1); one that doesn't is a
+sign to check the lines CSV.
 
 ### Profitability
 
@@ -258,7 +297,8 @@ Run them once, in order, before handing anything to whoever files the return.
    meantime, since it always reflects that day's frozen snapshot cost either
    way.
 5. **Run Taxable Sales for the full year** (January 1 through the year-end
-   date). Export the CSV.
+   date). Export both CSVs. (Quarterly returns: run it each quarter with the
+   quarter buttons.)
 6. **Hand both CSVs to whoever files the return**, along with the reminder at
    the bottom of this README: the costing method here is a documented,
    consistent simplification, not a claim of exact per-unit cost, and none of

@@ -4,6 +4,32 @@ All notable changes to this plugin are documented here. Versions correspond
 to [GitHub releases](https://github.com/croix/pv-tax-reports/releases), whose
 own notes carry the full commit-level detail — this is the short version.
 
+## Unreleased
+
+- **Taxable Sales rebuilt around the Texas return.** Reports Total Texas
+  sales, split into taxable sales, exempt sales on which tax was collected in
+  error (still owed), and exempt sales — with out-of-state and marketplace
+  (Amazon) sales shown but kept out of the Texas figures. Taxability comes
+  from the product's tax status (Zero rate class counts as exempt), not from
+  whether tax was charged. Sales taxed in error are also rolled into a
+  "taxable sales to report" line, since that tax is remitted. Website sales
+  only — Square and wholesale-invoice sales are not in WooCommerce.
+- Fixed a phantom "City Tax" row: Amazon's imported tax (rate ID 1) was being
+  labelled by looking rate 1 up in the store's own tax table. Labels now come
+  from the order's own tax lines, and marketplace tax is excluded.
+- Fixed the headline taxable figure, which summed lines under any rate,
+  marketplace included.
+- Fixed refunds on uncounted orders being netted anyway (a fully refunded
+  order's refund understated tax). Fully refunded orders now count, so the
+  sale and refund net to zero; refunds now reduce the taxable base too.
+- Shipping and fees are now taxable in proportion to the taxable items they
+  delivered.
+- Defaults to the last full quarter instead of silently showing month to
+  date; states the active range on screen; adds quarter quick picks.
+- New audit CSV: every line with order ID, date, ship-to, category, and tax by
+  jurisdiction. The on-screen jurisdiction table is aggregated by
+  jurisdiction, with an effective-rate check.
+
 ## v0.7.0 — 2026-08-16
 
 - Added a **Profitability** report: revenue, cost of goods, and margin by
