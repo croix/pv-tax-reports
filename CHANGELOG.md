@@ -4,7 +4,7 @@ All notable changes to this plugin are documented here. Versions correspond
 to [GitHub releases](https://github.com/croix/pv-tax-reports/releases), whose
 own notes carry the full commit-level detail — this is the short version.
 
-## Unreleased
+## v0.8.0 — 2026-10-05
 
 - **Taxable Sales rebuilt around the Texas return.** Reports Total Texas
   sales, split into taxable sales, exempt sales on which tax was collected in
